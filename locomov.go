@@ -3,18 +3,21 @@ package main
 
 import (
 	"bufio"
-	"log"
-	"net"
-	"strconv"
-	"strings"
-	"sync"
-
-        "fmt"
-	_"errors"
-
+    "crypto/rand"
+    "crypto/tls"
+    "crypto/x509"
 	"encoding/gob"
 	"encoding/json"
 	"flag"
+    "fmt"
+	_"io"
+	"log"
+	"net"
+	_ "strconv"
+	"strings"
+	"sync"
+    "time"
+	_"errors"
 )
 
 // A struct with a mix of fields, used for the GOB example.
@@ -62,6 +65,35 @@ func Open(addr string) (*bufio.ReadWriter, error) {
 		return nil, fmt.Errorf("Dialing "+addr+" failed %v", err)
 	}
 	return bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn)), nil
+}
+
+func OpenTLS(addr string) (*bufio.ReadWriter, error) {
+    //certs := make([]tls.Certificate, 1)
+    cert, err := tls.LoadX509KeyPair("test_client.cert.pem", "test_client.key.pem")
+    if err != nil {
+        return nil, fmt.Errorf("unable to load certs: %v", err)
+    }
+    //certs = append(certs, cert)
+    config := &tls.Config{
+                Certificates: []tls.Certificate{cert},
+                //CipherSuites: []uint16{0xc027},
+                CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
+                InsecureSkipVerify: true,
+    }
+    fmt.Println(config.CipherSuites)
+    log.Println("Dial " + addr)
+    conn, err := tls.Dial("tcp", addr, config)
+    if err != nil {
+        return nil, fmt.Errorf("Dialing " +addr+ " failed %v", err)
+    }
+    state := conn.ConnectionState()
+    for _, v := range state.PeerCertificates {
+        fmt.Println(x509.MarshalPKIXPublicKey(v.PublicKey))
+        fmt.Println(v.Subject)
+    }
+    fmt.Println("client: handshake: ", state.HandshakeComplete)
+    fmt.Println("client: mutual: ", state.NegotiatedProtocolIsMutual)
+    return bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn)), nil
 }
 
 /*
@@ -114,7 +146,22 @@ func (e *Endpoint) AddHandleFunc(name string, f HandleFunc) {
 // through AddHandleFunc() before.
 func (e *Endpoint) Listen() error {
 	var err error
-	e.listener, err = net.Listen("tcp", Port)
+    //certs := make([]tls.Certificate, 1)
+    cert, err := tls.LoadX509KeyPair("35.197.240.121.cert.pem", "35.197.240.121.key.pem")
+    if err != nil {
+        return fmt.Errorf("unable to load certs: %v", err)
+    }
+    //certs = append(certs, cert)
+    config := &tls.Config{
+                Certificates: []tls.Certificate{cert},
+                Rand: rand.Reader,
+                //CipherSuites: []uint16{0xc027},
+                CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
+                PreferServerCipherSuites: true,
+                GetCertificate: getClientCert,
+    }
+    fmt.Println(config.CipherSuites, config.PreferServerCipherSuites)
+	e.listener, err = tls.Listen("tcp", Port, config)
 	if err != nil {
 		return fmt.Errorf("Unable to listen on "+e.listener.Addr().String() + "%v \n", err)
 	}
@@ -127,8 +174,27 @@ func (e *Endpoint) Listen() error {
 			continue
 		}
 		log.Println("Handle incoming messages.")
+		log.Println("tls.Client")
+        log.Printf("server: accepted from %s", conn.RemoteAddr())
+        tlscon, ok := conn.(*tls.Conn)
+        if ok {
+            fmt.Println("ok=true")
+            state := tlscon.ConnectionState()
+            fmt.Println(state)
+            for _, v := range state.PeerCertificates {
+                fmt.Println(x509.MarshalPKIXPublicKey(v.PublicKey))
+            }
+        }
 		go e.handleMessages(conn)
 	}
+}
+
+func getClientCert(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+
+    fmt.Println(hello.CipherSuites)
+    fmt.Println(hello.SupportedVersions)
+
+    return nil, nil
 }
 
 // handleMessages reads the connection up to the first newline.
@@ -138,7 +204,23 @@ func (e *Endpoint) handleMessages(conn net.Conn) {
 	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 	defer conn.Close()
 
-        handleJSON(rw)
+        /*for {
+        bs := make([]byte, 10000)
+        n, err := rw.Read(bs)
+		switch {
+		case err == io.EOF:
+			log.Printf("Reached EOF - close this connection. %v %v \n   ---", n, string(bs))
+			//log.Println("Reached EOF - close this connection. \n   ---")
+			return
+		case err != nil:
+			log.Println("\nError during handshake: ", err)
+			//log.Println("\nError reading command. Got: '"+string(bs)+"'\n", err)
+			return
+		}
+		handleJSON(rw)
+                return
+        }*/
+		handleJSON(rw)
 }
 
 /* Now let's create two handler functions. The easiest case is where our
@@ -220,63 +302,28 @@ The server starts listening for requests and triggers the appropriate handlers.
 func client(ip string) error {
 	// Some test data. Note how GOB even handles maps, slices, and
 	// recursive data structures without problems.
-	testStruct := complexData{
-		N: 23,
-		S: "string data",
-		M: map[string]int{"one": 1, "two": 2, "three": 3},
-		P: []byte("abc"),
-		C: &complexData{
-			N: 256,
-			S: "Recursive structs? Piece of cake!",
-			M: map[string]int{"01": 1, "10": 2, "11": 3},
-		},
+	testStruct := Packet{
+		Id: 23,
+		Timestamp: time.Now().Unix(),
+		Status: true,
+		Voltage: 243.4,
+		Frequency: 50.15,
+        Lat: 13.345,
+        Lng: 75.678,
 	}
 
 	// Open a connection to the server.
-	rw, err := Open(ip + Port)
+	rw, err := OpenTLS(ip + Port)
 	if err != nil {
 		return fmt.Errorf("Client: Failed to open connection to %v %v %v", ip, Port, err)
 	}
 
-	// Send a STRING request.
-	// Send the request name.
-	// Send the data.
-	log.Println("Send the string request.")
-	n, err := rw.WriteString("STRING\n")
-	if err != nil {
-		return fmt.Errorf("Could not send the STRING request ("+strconv.Itoa(n)+" bytes written) %v", err)
-	}
-	n, err = rw.WriteString("Additional data.\n")
-	if err != nil {
-		return fmt.Errorf("Could not send additional STRING data ("+strconv.Itoa(n)+" bytes written) %v", err)
-	}
-	log.Println("Flush the buffer.")
-	err = rw.Flush()
-	if err != nil {
-		return fmt.Errorf("Flush failed. %v", err)
-	}
-
-	// Read the reply.
-	log.Println("Read the reply.")
-	response, err := rw.ReadString('\n')
-	if err != nil {
-		return fmt.Errorf("Client: Failed to read the reply: %v %v", response, err)
-	}
-
-	log.Println("STRING request: got a response:", response)
-
-	// Send a GOB request.
+	// Send a JSON request.
 	// Create an encoder that directly transmits to `rw`.
 	// Send the request name.
 	// Send the GOB.
-	log.Println("Send a struct as GOB:")
-	log.Printf("Outer complexData struct: \n%#v\n", testStruct)
-	log.Printf("Inner complexData struct: \n%#v\n", testStruct.C)
-	enc := gob.NewEncoder(rw)
-	n, err = rw.WriteString("GOB\n")
-	if err != nil {
-		return fmt.Errorf("Could not write GOB data ("+strconv.Itoa(n)+" bytes written) %v", err)
-	}
+	log.Println("Send a struct as json:")
+	enc := json.NewEncoder(rw)
 	err = enc.Encode(testStruct)
 	if err != nil {
 		return fmt.Errorf("Encode failed for struct: %#v %v", testStruct, err)
@@ -285,6 +332,14 @@ func client(ip string) error {
 	if err != nil {
 		return fmt.Errorf("Flush failed. %v", err)
 	}
+	// Read the reply.
+	log.Println("Read the reply.")
+	response, err := rw.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("Client: Failed to read the reply: %v %v", response, err)
+	}
+
+	log.Println("STRING request: got a response:", response)
 	return nil
 }
 
