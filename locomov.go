@@ -77,7 +77,7 @@ func OpenTLS(addr string) (*bufio.ReadWriter, error) {
     config := &tls.Config{
                 Certificates: []tls.Certificate{cert},
                 //CipherSuites: []uint16{0xc027},
-                CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
+                CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_256_CBC_SHA},
                 InsecureSkipVerify: true,
     }
     fmt.Println(config.CipherSuites)
@@ -145,48 +145,57 @@ func (e *Endpoint) AddHandleFunc(name string, f HandleFunc) {
 // At least one handler function must have been added
 // through AddHandleFunc() before.
 func (e *Endpoint) Listen() error {
-	var err error
-    //certs := make([]tls.Certificate, 1)
-    cert, err := tls.LoadX509KeyPair("35.197.240.121.cert.pem", "35.197.240.121.key.pem")
-    if err != nil {
-        return fmt.Errorf("unable to load certs: %v", err)
-    }
-    //certs = append(certs, cert)
-    config := &tls.Config{
-                Certificates: []tls.Certificate{cert},
-                Rand: rand.Reader,
-                //CipherSuites: []uint16{0xc027},
-                CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
-                PreferServerCipherSuites: true,
-                GetCertificate: getClientCert,
-    }
-    fmt.Println(config.CipherSuites, config.PreferServerCipherSuites)
-	e.listener, err = tls.Listen("tcp", Port, config)
-	if err != nil {
-		return fmt.Errorf("Unable to listen on "+e.listener.Addr().String() + "%v \n", err)
-	}
-	log.Println("Listen on", e.listener.Addr().String())
-	for {
-		log.Println("Accept a connection request.")
-		conn, err := e.listener.Accept()
-		if err != nil {
-			log.Println("Failed accepting a connection request:", err)
-			continue
-		}
-		log.Println("Handle incoming messages.")
-		log.Println("tls.Client")
-        log.Printf("server: accepted from %s", conn.RemoteAddr())
-        tlscon, ok := conn.(*tls.Conn)
-        if ok {
-            fmt.Println("ok=true")
-            state := tlscon.ConnectionState()
-            fmt.Println(state)
-            for _, v := range state.PeerCertificates {
-                fmt.Println(x509.MarshalPKIXPublicKey(v.PublicKey))
-            }
+        var err error
+        if *secure {
+                //certs := make([]tls.Certificate, 1)
+                cert, err := tls.LoadX509KeyPair("35.197.240.121.cert.pem", "35.197.240.121.key.pem")
+                //cert, err := tls.LoadX509KeyPair("dummy-trusted-cert.pem", "dummy-trusted-cert-key.pem")
+                if err != nil {
+                        return fmt.Errorf("unable to load certs: %v", err)
+                }
+                //certs = append(certs, cert)
+                config := &tls.Config{
+                        Certificates: []tls.Certificate{cert},
+                        Rand: rand.Reader,
+                        //CipherSuites: []uint16{0xc027},
+                        CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_256_CBC_SHA},
+                        PreferServerCipherSuites: true,
+                        GetCertificate: getClientCert,
+                }
+                log.Println(config.CipherSuites, config.PreferServerCipherSuites)
+                e.listener, err = tls.Listen("tcp", Port, config)
+                if err != nil {
+                        return fmt.Errorf("Unable to listen on "+e.listener.Addr().String() + "%v \n", err)
+                }
+        } else {
+                e.listener, err = net.Listen("tcp", Port)
+                if err != nil {
+                        return fmt.Errorf("Unable to listen on "+e.listener.Addr().String() + "%v \n", err)
+                }
+
         }
-		go e.handleMessages(conn)
-	}
+        log.Println("Listen on", e.listener.Addr().String())
+        for {
+                log.Println("Accept a connection request.")
+                conn, err := e.listener.Accept()
+                if err != nil {
+                        log.Println("Failed accepting a connection request:", err)
+                        continue
+                }
+                log.Println("Handle incoming messages.")
+                log.Println("tls.Client")
+                log.Printf("server: accepted from %s", conn.RemoteAddr())
+                tlscon, ok := conn.(*tls.Conn)
+                if ok {
+                    log.Println("ok=true")
+                    state := tlscon.ConnectionState()
+                    log.Println(state)
+                    for _, v := range state.PeerCertificates {
+                        fmt.Println(x509.MarshalPKIXPublicKey(v.PublicKey))
+                    }
+                }
+                go e.handleMessages(conn)
+        }
 }
 
 func getClientCert(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
@@ -368,6 +377,7 @@ Try "localhost" or "127.0.0.1" when running both processes on the same machine.
 
 */
 
+var secure = flag.Bool("secure", false, "If true tls.Listen, else net.Listen")
 // main
 func main() {
 	connect := flag.String("connect", "", "IP address of process to join. If empty, go into listen mode.")
