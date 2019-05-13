@@ -1,27 +1,35 @@
-## moviot ##
+## locomov 
 
-## Contents ##
+## [Contents](#contents){#contents} 
 - [Brief](#brief)
 - [Components](#components)
-  - [Hardware](#hardware)
-  - [Software](#software)
+  - [Database](#db)
+  - [Logging](#logging)
+  - [Encryption](#encryption)
 - [Theory](#theory)
 - [Gotchas](#gotchas)
 - [References](#references)
 
-## Brief ##
-A server to 
+## [Brief](#brief){#brief}
+A secure tcp server to receive status/meter readings with postgresql database to store readings. 
 
-Start with a simple server which collects location data via both JSON and GPRC. Implement client and server.   
+Detailed documentation found [here](https://tortuoise.github.io/m0v-server.html)
 
-## Components ##
+## [Components]()
+
+### [Logging]
+
+### [Encryption]()
+
 
 ## Theory ##
 
 ## Gotchas ##
 
+
 ## References ## 
 + [](https://)
 + [](https://) 
 + [](https://)
+
 

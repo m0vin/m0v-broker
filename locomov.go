@@ -2,22 +2,22 @@
 package main
 
 import (
-	"bufio"
-    "crypto/rand"
-    "crypto/tls"
-    "crypto/x509"
-	"encoding/gob"
-	"encoding/json"
-	"flag"
-    "fmt"
-	_"io"
-	"log"
-	"net"
-	_ "strconv"
-	"strings"
-	"sync"
-    "time"
-	_"errors"
+        "bufio"
+        "crypto/rand"
+        "crypto/tls"
+        "crypto/x509"
+        "encoding/gob"
+        "encoding/json"
+        "flag"
+        "fmt"
+        _ "io/ioutil"
+        "log"
+        "net"
+        _ "strconv"
+        "strings"
+        "sync"
+        "time"
+        _"errors"
 )
 
 // A struct with a mix of fields, used for the GOB example.
@@ -42,6 +42,10 @@ type Packet struct {
 const (
 	// Port is the port number that the server listens to.
 	Port = ":38979"
+        // Root CA
+        RootCA = "dst_rootca_x3.pem"
+        // Let's Encrypt
+        CA = "b00m-trusted-ca-cert.pem"
 )
 
 /*
@@ -147,20 +151,22 @@ func (e *Endpoint) AddHandleFunc(name string, f HandleFunc) {
 func (e *Endpoint) Listen() error {
         var err error
         if *secure {
-                //certs := make([]tls.Certificate, 1)
-                cert, err := tls.LoadX509KeyPair("35.197.240.121.cert.pem", "35.197.240.121.key.pem")
+                //cert, err := tls.LoadX509KeyPair("35.197.240.121.cert.pem", "35.197.240.121.key.pem")
+                b00m, err := tls.LoadX509KeyPair("b00m-trusted-chain.pem", "b00m-trusted-cert-key.pem")
                 //cert, err := tls.LoadX509KeyPair("dummy-trusted-cert.pem", "dummy-trusted-cert-key.pem")
                 if err != nil {
                         return fmt.Errorf("unable to load certs: %v", err)
                 }
                 //certs = append(certs, cert)
                 config := &tls.Config{
-                        Certificates: []tls.Certificate{cert},
+                        Certificates: []tls.Certificate{b00m},
                         Rand: rand.Reader,
                         //CipherSuites: []uint16{0xc027},
-                        CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_256_CBC_SHA},
+                        //CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+                        //                        tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA},
                         PreferServerCipherSuites: true,
                         GetCertificate: getClientCert,
+                        //RootCAs: dsarootx3,
                 }
                 log.Println(config.CipherSuites, config.PreferServerCipherSuites)
                 e.listener, err = tls.Listen("tcp", Port, config)
@@ -365,6 +371,8 @@ func server() error {
 	return endpoint.Listen()
 }
 
+var secure = flag.Bool("secure", false, "If true tls.Listen, else net.Listen")
+
 /*
 ## Main
 
@@ -377,7 +385,6 @@ Try "localhost" or "127.0.0.1" when running both processes on the same machine.
 
 */
 
-var secure = flag.Bool("secure", false, "If true tls.Listen, else net.Listen")
 // main
 func main() {
 	connect := flag.String("connect", "", "IP address of process to join. If empty, go into listen mode.")
