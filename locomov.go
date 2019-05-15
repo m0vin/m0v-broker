@@ -18,6 +18,8 @@ import (
         "sync"
         "time"
         _"errors"
+	"github.com/tortuoise/locomov/data"
+        "github.com/golang/glog"
 )
 
 // A struct with a mix of fields, used for the GOB example.
@@ -46,6 +48,10 @@ const (
         RootCA = "dst_rootca_x3.pem"
         // Let's Encrypt
         CA = "b00m-trusted-ca-cert.pem"
+)
+
+var (
+        ch chan *Packet
 )
 
 /*
@@ -301,6 +307,10 @@ func handleJSON(rw *bufio.ReadWriter) {
 	if err != nil {
 		log.Println("Flush failed.", err)
 	}
+        select {
+        case ch<-packet:
+        default:
+        }
 }
 
 /*
@@ -390,6 +400,9 @@ func main() {
 	connect := flag.String("connect", "", "IP address of process to join. If empty, go into listen mode.")
 	flag.Parse()
 
+        // Start goroutine which reads from buffered channel and writes to database
+        go store()
+
 	// If the connect flag is set, go into client mode.
 	if *connect != "" {
 		err := client(*connect)
@@ -409,8 +422,44 @@ func main() {
 	log.Println("Server done.")
 }
 
+func store() {
+        // Just testing database connection
+        /*c, err := data.GetCoordinate(1)
+        if err != nil {
+                glog.Errorf("GetLast %v \n", err)
+                return err
+        } else {
+                glog.Infof("GetCoord %v \n", c)
+        }*/
+
+        glog.Infof("%s /n", "Storing ... ")
+        for {
+                select {
+                case p := <-ch:
+                        dp, err := p2pp(p)
+                        if err != nil {
+                                glog.Infof("%v \n", err)
+                        }
+                        i, err := data.PutPacket(dp)
+                        if err != nil {
+                                glog.Infof("%s %v \n", "Packet not saved: ", err)
+                        }
+                        glog.Infof("%s %d \n", "Packet saved: %d", i)
+                case <-time.After(30*time.Second):
+                        glog.Infof("%s \n", "No packets received for 30 seconds")
+                }
+        }
+}
+
+func p2pp(p *Packet) (*data.Packet, error) {
+
+        return &data.Packet{p.Id, p.Timestamp, p.Status, p.Voltage, p.Frequency, p.Lat, p.Lng}, nil
+
+}
+
 // The Lshortfile flag includes file name and line number in log messages.
 func init() {
+        ch = make(chan *Packet, 10)
 	log.SetFlags(log.Lshortfile)
 }
 

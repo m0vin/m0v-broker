@@ -49,6 +49,16 @@ type Coordinate struct {
         Altitude float32
 }
 
+type Packet struct {
+        Id int64 `json:"id!`
+        Timestamp int64 `json:"timestamp,omitempty"`
+        Status bool `json:"status"`
+        Voltage float64 `json:"voltage"`
+        Frequency float64 `json:"freq"`
+        Lat float64 `json:"lat"`
+        Lng float64 `json:"lng"`
+}
+
 type WrappedCoordinate struct {
         UserId int64
         Id int64
@@ -59,13 +69,60 @@ type WrappedCoordinate struct {
         Track string
 }
 
-
 type TrackRequest struct {
 	User int64
 	//Period *TimePeriod
 	Track  string
 }
 
+// PutPacket inserts packet in db. It *should* check whether pub_id sent with packet is from the 'correct' pub. This could be a check against the location or a 'secret' decided during configuration with app which is sent along with each packet'
+func PutPacket(packet *Packet) (uint64, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return 0, err
+        }
+        result, err := db.Exec("insert into packet (pub_id, voltage, frequency, protected) values ($1, $2, $3, $4)", packet.Id, packet.Voltage, packet.Frequency, packet.Status)
+        if err != nil {
+                glog.Error(err)
+                return 0 , err
+        }
+        rows, err := result.RowsAffected()
+        if rows != 1 {
+                glog.Error("expected to affect 1 row, affected %d", rows)
+                return uint64(rows) , err
+        }
+        return uint64(rows), nil
+}
+
+// GetPacket retrieves the latest packet in db with supplied `pub_id`. 
+// Note: it returns a packet with `id` set to the serial of the reading rather than `pub_id` since caller of function already has `pub_id`
+func GetLastPacket(pubId int64) (*Packet, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return nil, err
+        }
+        rows, err := db.Query("select id, voltage, frequency, protected from packet where pub_id=$1 order by created_at desc limit 1", pubId)
+        if err != nil {
+                glog.Errorf("data.GetCoordinate %v \n", err)
+                return nil, err
+        }
+        defer rows.Close()
+        if !rows.Next() {
+                glog.Errorf("data.GetCoordinate %v \n", err)
+                return nil, fmt.Errorf("No data for user: %d \n", pubId)
+        }
+        pc := &Packet{Id: pubId}
+        err = rows.Scan(&pc.Id, &pc.Voltage, &pc.Frequency, &pc.Status)
+        if err != nil {
+                glog.Errorf("data.GetCoordinate %v \n", err)
+                return nil, err
+        }
+        return pc, nil
+}
+
+// PutCoordinate
 func PutCoordinate(coord *WrappedCoordinate) (uint64, error) {
         db, err := GetDB()
         if err != nil {
@@ -87,7 +144,6 @@ func PutCoordinate(coord *WrappedCoordinate) (uint64, error) {
 }
 
 func GetCoordinate(userid int64) (*WrappedCoordinate, error){
-
         db, err := GetDB()
         if err != nil {
                 glog.Error(err)

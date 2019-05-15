@@ -15,8 +15,9 @@ func main() {
         if err != nil {
                 log.Fatalf("server: loadkeys: %s", err)
         }
-        config := tls.Config{Certificates: []tls.Certificate{cert}, InsecureSkipVerify: false}
-        conn, err := tls.Dial("tcp", "b00m.in:38979", &config)
+        config := tls.Config{Certificates: []tls.Certificate{cert}, InsecureSkipVerify: true } //false}
+        //conn, err := tls.Dial("tcp", "b00m.in:38979", &config)
+        conn, err := tls.Dial("tcp", "127.0.0.1:38979", &config)
         if err != nil {
                 log.Fatalf("client: dial: %s", err)
         }
@@ -30,7 +31,7 @@ func main() {
         }
         log.Println("client: handshake: ", state.HandshakeComplete)
         log.Println("client: mutual: ", state.NegotiatedProtocolIsMutual)
-        packet := &Packet{ 123, time.Now().Unix(), true, 415.5, 50.3, 32.55, 23.444}
+        packet := &Packet{ 1, time.Now().Unix(), true, 415.5, 50.3, 32.55, 23.444}
         enc := json.NewEncoder(conn)
         if err = enc.Encode(packet); err != nil {
                 log.Printf("client: couldn't encode to conn: %v \n", err)
