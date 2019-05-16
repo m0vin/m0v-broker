@@ -18,7 +18,7 @@ import (
         "sync"
         "time"
         _"errors"
-	"github.com/tortuoise/locomov/data"
+	"github.com/tortuoise/mov-server/data"
         "github.com/golang/glog"
 )
 
