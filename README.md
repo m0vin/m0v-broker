@@ -1,6 +1,6 @@
 ## mov-server 
 
-## [Contents](#contents){#contents} 
+## [Contents](#contents)
 - [Brief](#brief)
 - [Components](#components)
   - [Database](#db)
@@ -10,14 +10,14 @@
 - [Gotchas](#gotchas)
 - [References](#references)
 
-## [Brief](#brief){#brief}
+## [Brief](#brief)
 A secure tcp server to receive status/meter readings with postgresql database to store readings. 
 
 Detailed documentation found [here](https://tortuoise.github.io/m0v-server.html)
 
 ## [Components]()
 
-### [Logging]
+### [Logging]()
 
 ### [Encryption]()
 
