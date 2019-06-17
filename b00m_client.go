@@ -4,20 +4,35 @@ import (
         "crypto/tls"
         "crypto/x509"
         "encoding/json"
+        "flag"
         "fmt"
         "log"
         "time"
 )
 
+var (
+        input = flag.String("in", "confo", "type of input - confo|packet")
+        url = "127.0.0.1:"
+        p1 = "38979"
+        p2 = "38980"
+)
+
 func main() {
+        flag.Parse()
         // Load leaf certs
         cert, err := tls.LoadX509KeyPair("b00m-trusted-cert.pem", "b00m-trusted-cert-key.pem")
         if err != nil {
                 log.Fatalf("server: loadkeys: %s", err)
         }
         config := tls.Config{Certificates: []tls.Certificate{cert}, InsecureSkipVerify: true } //false}
+        if *input == "confo" {
+                url += p2
+        } else {
+                url += p1
+        }
         //conn, err := tls.Dial("tcp", "b00m.in:38979", &config)
-        conn, err := tls.Dial("tcp", "127.0.0.1:38979", &config)
+        //conn, err := tls.Dial("tcp", "127.0.0.1:38979", &config)
+        conn, err := tls.Dial("tcp", url, &config)
         if err != nil {
                 log.Fatalf("client: dial: %s", err)
         }
@@ -31,10 +46,20 @@ func main() {
         }
         log.Println("client: handshake: ", state.HandshakeComplete)
         log.Println("client: mutual: ", state.NegotiatedProtocolIsMutual)
-        packet := &Packet{ 1, time.Now().Unix(), true, 415.5, 50.3, 32.55, 23.444}
-        enc := json.NewEncoder(conn)
-        if err = enc.Encode(packet); err != nil {
-                log.Printf("client: couldn't encode to conn: %v \n", err)
+        if *input == "confo" {
+                //packet := &Confo{Timestamp: time.Now().Unix(), Devicename: "Movprov", Ssid: "M0V"}
+                packet := &Confo{ Devicename:"Movprov", Ssid: "M0V"}
+                enc := json.NewEncoder(conn)
+                if err = enc.Encode(packet); err != nil {
+                        log.Printf("client: couldn't encode to conn: %v \n", err)
+                }
+
+        } else {
+                packet := &Packet{ 1, time.Now().Unix(), true, 415.5, 50.3, 32.55, 23.444}
+                enc := json.NewEncoder(conn)
+                if err = enc.Encode(packet); err != nil {
+                        log.Printf("client: couldn't encode to conn: %v \n", err)
+                }
         }
 
         reply := make([]byte, 256)
@@ -53,4 +78,8 @@ type Packet struct {
         Lng float64 `json:"lng"`
 }
 
-
+type Confo struct {
+        Devicename string `json:"devicename"`
+        Ssid string `json:"ssid"`
+        Timestamp int64 `json:"timestamp"`
+}

@@ -1,6 +1,7 @@
 DROP TABLE IF EXISTS pub;
 DROP TABLE IF EXISTS sub;
 DROP TABLE IF EXISTS packet;
+DROP TABLE IF EXISTS confo;
 
 CREATE TABLE IF NOT EXISTS pub (
 	pub_id SERIAL PRIMARY KEY,
@@ -24,6 +25,14 @@ CREATE TABLE IF NOT EXISTS packet (
 	voltage REAL,
 	frequency REAL,
 	protected boolean NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS confo (
+	id SERIAL,
+	created_at TIMESTAMPTZ NOT NULL default current_timestamp,
+	devicename VARCHAR(32),
+	ssid VARCHAR(32),
+	PRIMARY KEY (created_at, devicename, ssid)
 );
 
 CREATE INDEX sub_index ON coordinate(user_id);

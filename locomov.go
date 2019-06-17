@@ -32,7 +32,7 @@ type complexData struct {
 }
 
 type Packet struct {
-        Id int64 `json:"id!`
+        Id int64 `json:"id"`
         Timestamp int64 `json:"timestamp,omitempty"`
         Status bool `json:"status"`
         Voltage float64 `json:"voltage"`
@@ -78,32 +78,32 @@ func Open(addr string) (*bufio.ReadWriter, error) {
 }
 
 func OpenTLS(addr string) (*bufio.ReadWriter, error) {
-    //certs := make([]tls.Certificate, 1)
-    cert, err := tls.LoadX509KeyPair("test_client.cert.pem", "test_client.key.pem")
-    if err != nil {
-        return nil, fmt.Errorf("unable to load certs: %v", err)
-    }
-    //certs = append(certs, cert)
-    config := &tls.Config{
+        //certs := make([]tls.Certificate, 1)
+        cert, err := tls.LoadX509KeyPair("test_client.cert.pem", "test_client.key.pem")
+        if err != nil {
+                return nil, fmt.Errorf("unable to load certs: %v", err)
+        }
+        //certs = append(certs, cert)
+        config := &tls.Config{
                 Certificates: []tls.Certificate{cert},
                 //CipherSuites: []uint16{0xc027},
                 CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_256_CBC_SHA},
                 InsecureSkipVerify: true,
-    }
-    fmt.Println(config.CipherSuites)
-    log.Println("Dial " + addr)
-    conn, err := tls.Dial("tcp", addr, config)
-    if err != nil {
-        return nil, fmt.Errorf("Dialing " +addr+ " failed %v", err)
-    }
-    state := conn.ConnectionState()
-    for _, v := range state.PeerCertificates {
-        fmt.Println(x509.MarshalPKIXPublicKey(v.PublicKey))
-        fmt.Println(v.Subject)
-    }
-    fmt.Println("client: handshake: ", state.HandshakeComplete)
-    fmt.Println("client: mutual: ", state.NegotiatedProtocolIsMutual)
-    return bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn)), nil
+        }
+        fmt.Println(config.CipherSuites)
+        log.Println("Dial " + addr)
+        conn, err := tls.Dial("tcp", addr, config)
+        if err != nil {
+                return nil, fmt.Errorf("Dialing " +addr+ " failed %v", err)
+        }
+        state := conn.ConnectionState()
+        for _, v := range state.PeerCertificates {
+                fmt.Println(x509.MarshalPKIXPublicKey(v.PublicKey))
+                fmt.Println(v.Subject)
+        }
+        fmt.Println("client: handshake: ", state.HandshakeComplete)
+        fmt.Println("client: mutual: ", state.NegotiatedProtocolIsMutual)
+        return bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn)), nil
 }
 
 /*
@@ -211,11 +211,9 @@ func (e *Endpoint) Listen() error {
 }
 
 func getClientCert(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-
-    fmt.Println(hello.CipherSuites)
-    fmt.Println(hello.SupportedVersions)
-
-    return nil, nil
+        fmt.Println(hello.CipherSuites)
+        fmt.Println(hello.SupportedVersions)
+        return nil, nil
 }
 
 // handleMessages reads the connection up to the first newline.

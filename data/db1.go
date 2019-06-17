@@ -59,6 +59,14 @@ type Packet struct {
         Lng float64 `json:"lng"`
 }
 
+type Confo struct {
+        Id int64 `json:"id!`
+        Devicename string `json:"devicename"`
+        Ssid string `json:"ssid"`
+        //Created int64 `json:"created,omitempty"`
+        Created time.Time `json:"created,omitempty"`
+}
+
 type WrappedCoordinate struct {
         UserId int64
         Id int64
@@ -73,6 +81,60 @@ type TrackRequest struct {
 	User int64
 	//Period *TimePeriod
 	Track  string
+}
+
+// PutConf inserts a recd. Conf in db. 
+func PutConfo(confo *Confo) (uint64, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return 0, err
+        }
+        // convert to timestamp
+        //created, err := time.Unix(confo.Created, 0).MarshalText()
+        created, err := confo.Created.MarshalText()
+	if err != nil {
+                glog.Error(err)
+		created, err = time.Now().MarshalText()
+	}
+        result, err := db.Exec("insert into confo (devicename, ssid, created_at) values ($1, $2, $3)", confo.Devicename, confo.Ssid, string(created))
+        if err != nil {
+                glog.Error(err)
+                return 0 , err
+        }
+        rows, err := result.RowsAffected()
+        if rows != 1 {
+                glog.Error("expected to affect 1 row, affected %d", rows)
+                return uint64(rows) , err
+        }
+        return uint64(rows), nil
+}
+
+// GetLastConf retrieves the latest conf in db with supplied `ssid+devicename`. 
+// It returns a *Conf with matching `ssid+devicename` and latest timestamp or nil, error if none found
+func GetLastConfo(devicename, ssid string) (*Confo, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return nil, err
+        }
+        rows, err := db.Query("select devicename, ssid, created_at from confo where devicename=$1 and ssid=$2 order by created_at desc limit 1", devicename, ssid)
+        if err != nil {
+                glog.Errorf("data.GetLastConfo %v \n", err)
+                return nil, err
+        }
+        defer rows.Close()
+        if !rows.Next() {
+                glog.Errorf("data.GetLastConfo %v \n", err)
+                return nil, fmt.Errorf("No data for tuple: %s %s \n", devicename, ssid)
+        }
+        pc := &Confo{}
+        err = rows.Scan(&pc.Devicename, &pc.Ssid, &pc.Created)
+        if err != nil {
+                glog.Errorf("data.GetLastConfo %v \n", err)
+                return nil, err
+        }
+        return pc, nil
 }
 
 // PutPacket inserts packet in db. It *should* check whether pub_id sent with packet is from the 'correct' pub. This could be a check against the location or a 'secret' decided during configuration with app which is sent along with each packet'
