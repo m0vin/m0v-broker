@@ -31,6 +31,7 @@ type complexData struct {
 	C *complexData
 }
 
+// Packet encapsulates the data received from the device.
 type Packet struct {
         Id int64 `json:"id"`
         Timestamp int64 `json:"timestamp,omitempty"`
@@ -430,7 +431,7 @@ func store() {
                 glog.Infof("GetCoord %v \n", c)
         }*/
 
-        glog.Infof("%s /n", "Storing ... ")
+        glog.Infof("%s \n", "Storing ... ")
         for {
                 select {
                 case p := <-ch:
