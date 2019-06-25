@@ -287,7 +287,7 @@ func store() {
                 glog.Infof("GetCoord %v \n", c)
         }*/
 
-        glog.Infof("%s /n", "Storing ... ")
+        glog.Infof("%s \n", "Storing ... ")
         for {
                 select {
                 case p := <-ch:
