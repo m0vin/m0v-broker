@@ -44,7 +44,7 @@ type Packet struct {
 
 const (
 	// Port is the port number that the server listens to.
-	Port = ":38979"
+	Port = ":38981"
         // Root CA
         RootCA = "dst_rootca_x3.pem"
         // Let's Encrypt

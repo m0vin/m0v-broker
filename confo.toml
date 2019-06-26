@@ -5,7 +5,7 @@
 # The directory to store the log files
 directory = "log"
 # The name of the current log file
-active_file_name = "out.log"
+active_file_name = "out_confo.log"
 
 # File will be rotated whenever any one of these conditions are met
 [rotation]
@@ -46,7 +46,7 @@ gzip = false
 # Example -
 # prepend_value = "[app_name]- "
 # prepend_value = "[app_name] {{.RFC822Timestamp}}- "
-prepend_value = ""
+prepend_value = "[confo] "
 
 # Specifies the output target to send the logs to. Uncomment the output you want.
 # You can omit this section if you are just logging to files.
