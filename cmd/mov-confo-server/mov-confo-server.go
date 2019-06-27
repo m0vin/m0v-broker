@@ -43,6 +43,8 @@ var (
         httpWto int
         httpPort int
         httpsPort int
+        local = false
+        b00m tls.Certificate
 )
 
 // HandleFunc is a function that handles an incoming command.
@@ -80,9 +82,12 @@ func (e *Endpoint) AddHandleFunc(name string, f HandleFunc) {
 func (e *Endpoint) Listen() error {
         var err error
         if *secure {
-                //cert, err := tls.LoadX509KeyPair("35.197.240.121.cert.pem", "35.197.240.121.key.pem")
-                b00m, err := tls.LoadX509KeyPair("b00m-trusted-chain.pem", "b00m-trusted-cert-key.pem")
-                //cert, err := tls.LoadX509KeyPair("dummy-trusted-cert.pem", "dummy-trusted-cert-key.pem")
+                if local {
+                        //cert, err := tls.LoadX509KeyPair("35.197.240.121.cert.pem", "35.197.240.121.key.pem")
+                        b00m, err = tls.LoadX509KeyPair("dummy-trusted-cert.pem", "dummy-trusted-cert-key.pem")
+                } else {
+                        b00m, err = tls.LoadX509KeyPair("b00m-trusted-chain.pem", "b00m-trusted-cert-key.pem")
+                }
                 if err != nil {
                         return fmt.Errorf("unable to load certs: %v", err)
                 }
@@ -320,6 +325,7 @@ func init() {
         flag.IntVar(&httpWto, "rto", 10, "Write timeout")
         flag.IntVar(&httpPort, "http_port", 38980, "Http server port")
         flag.IntVar(&httpsPort, "https_port", 443, "Http server port")
+        flag.BoolVar(&local, "local", false, "Run locally with dummy certs")
 }
 
 func startHttp() {

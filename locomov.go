@@ -53,6 +53,9 @@ const (
 
 var (
         ch chan *Packet
+        secure = flag.Bool("secure", false, "If true tls.Listen, else net.Listen")
+        local = false
+        b00m tls.Certificate
 )
 
 /*
@@ -158,9 +161,12 @@ func (e *Endpoint) AddHandleFunc(name string, f HandleFunc) {
 func (e *Endpoint) Listen() error {
         var err error
         if *secure {
-                //cert, err := tls.LoadX509KeyPair("35.197.240.121.cert.pem", "35.197.240.121.key.pem")
-                b00m, err := tls.LoadX509KeyPair("b00m-trusted-chain.pem", "b00m-trusted-cert-key.pem")
-                //cert, err := tls.LoadX509KeyPair("dummy-trusted-cert.pem", "dummy-trusted-cert-key.pem")
+                if local {
+                        //cert, err := tls.LoadX509KeyPair("35.197.240.121.cert.pem", "35.197.240.121.key.pem")
+                        b00m, err = tls.LoadX509KeyPair("dummy-trusted-cert.pem", "dummy-trusted-cert-key.pem")
+                } else {
+                        b00m, err = tls.LoadX509KeyPair("b00m-trusted-chain.pem", "b00m-trusted-cert-key.pem")
+                }
                 if err != nil {
                         return fmt.Errorf("unable to load certs: %v", err)
                 }
@@ -380,7 +386,11 @@ func server() error {
 	return endpoint.Listen()
 }
 
-var secure = flag.Bool("secure", false, "If true tls.Listen, else net.Listen")
+func init() {
+
+        flag.BoolVar(&local, "local", false, "Run locally with dummy certs")
+
+}
 
 /*
 ## Main
