@@ -26,6 +26,7 @@ type Confo struct {
         Devicename string`json:"deviceName"`
         Timestamp int64 `json:"timestamp,omitempty"`
         Ssid string `json:"ssid"`
+        Hash int64 `json:hash,omitempty"`
 }
 const (
 	// Port is the port number that the server listens to.
@@ -296,6 +297,23 @@ func store() {
         for {
                 select {
                 case p := <-ch:
+                        // create the pub if the hash is new
+                        pub, err := data.GetPubByHash(p.Hash)
+                        if err != nil {
+                                glog.Infof("New hash %d %v \n", p.Hash, err)
+                                p := &data.Pub{Hash: p.Hash, Created: time.Unix(p.Timestamp, 0)}
+                                i, err := data.PutPub(p)
+                                if err != nil {
+                                        glog.Infof("Couldn't store new hash %d %v \n", p.Hash, err)
+                                } else {
+                                        glog.Infof("Pub saved %d %d \n", i, p.Hash)
+                                        pub = p
+                                }
+                        }
+                        if pub != nil {
+                                glog.Infof("Pub exists %d %d \n", pub.Id, pub.Hash)
+                        }
+                        // store the confo anyway
                         dp, err := c2dc(p)
                         if err != nil {
                                 glog.Infof("%v \n", err)
@@ -312,7 +330,7 @@ func store() {
 }
 
 func c2dc(c *Confo) (*data.Confo, error) {
-        return &data.Confo{Devicename: c.Devicename, Ssid: c.Ssid, Created: time.Unix(c.Timestamp, 0)}, nil
+        return &data.Confo{Devicename: c.Devicename, Ssid: c.Ssid, Created: time.Unix(c.Timestamp, 0), Hash: c.Hash}, nil
 }
 
 // The Lshortfile flag includes file name and line number in log messages.

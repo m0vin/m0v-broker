@@ -60,10 +60,21 @@ type Packet struct {
 }
 
 type Confo struct {
-        Id int64 `json:"id!`
+        Id int64 `json:"id`
         Devicename string `json:"devicename"`
         Ssid string `json:"ssid"`
+        Hash int64 `json:"hash"`
         //Created int64 `json:"created,omitempty"`
+        Created time.Time `json:"created,omitempty"`
+}
+
+type Pub struct {
+        Id int64 `json:"id"`
+        Latitude float32 `json:"latitude,omitempty"`
+        Longitude float32 `json:"longitude,omitempty"`
+        Altitude float32 `json:"altitude,omitempty"`
+        Orientation float32 `json:"orientation,omitempty"`
+        Hash int64 `json:"hash"`
         Created time.Time `json:"created,omitempty"`
 }
 
@@ -83,6 +94,57 @@ type TrackRequest struct {
 	Track  string
 }
 
+func PutPub(pub *Pub) (uint64, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return 0, err
+        }
+        // convert to timestamp
+        //created, err := time.Unix(confo.Created, 0).MarshalText()
+        created, err := pub.Created.MarshalText()
+	if err != nil {
+                glog.Error(err)
+		created, err = time.Now().MarshalText()
+	}
+        result, err := db.Exec("insert into pub (latitude, longitude, altitude, orientation, created_at, hash) values ($1, $2, $3, $4, $5, $6)", pub.Latitude, pub.Longitude, pub.Altitude, pub.Orientation, string(created), pub.Hash)
+        if err != nil {
+                glog.Error(err)
+                return 0 , err
+        }
+        rows, err := result.RowsAffected()
+        if rows != 1 {
+                glog.Error("expected to affect 1 row, affected %d", rows)
+                return uint64(rows) , err
+        }
+        return uint64(rows), nil
+}
+
+func GetPubByHash(hash int64) (*Pub, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return nil, err
+        }
+        rows, err := db.Query("select pub_id, created_at, latitude, longitude, hash from pub where hash=$1 order by created_at desc limit 1", hash)
+        if err != nil {
+                glog.Errorf("data.GetPubByHash %v \n", err)
+                return nil, err
+        }
+        defer rows.Close()
+        if !rows.Next() {
+                glog.Errorf("data.GetPubByHash %v \n", err)
+                return nil, fmt.Errorf("No data for hash: %d \n", hash)
+        }
+        pc := &Pub{}
+        err = rows.Scan(&pc.Id, &pc.Created, &pc.Latitude, &pc.Longitude, &pc.Hash)
+        if err != nil {
+                glog.Errorf("data.GetPubByHash %v \n", err)
+                return nil, err
+        }
+        return pc, nil
+}
+
 // PutConf inserts a recd. Conf in db. 
 func PutConfo(confo *Confo) (uint64, error) {
         db, err := GetDB()
@@ -97,7 +159,7 @@ func PutConfo(confo *Confo) (uint64, error) {
                 glog.Error(err)
 		created, err = time.Now().MarshalText()
 	}
-        result, err := db.Exec("insert into confo (devicename, ssid, created_at) values ($1, $2, $3)", confo.Devicename, confo.Ssid, string(created))
+        result, err := db.Exec("insert into confo (devicename, ssid, created_at, hash) values ($1, $2, $3, $4)", confo.Devicename, confo.Ssid, string(created), confo.Hash)
         if err != nil {
                 glog.Error(err)
                 return 0 , err
@@ -144,7 +206,7 @@ func PutPacket(packet *Packet) (uint64, error) {
                 glog.Error(err)
                 return 0, err
         }
-        result, err := db.Exec("insert into packet (pub_id, voltage, frequency, protected) values ($1, $2, $3, $4)", packet.Id, packet.Voltage, packet.Frequency, packet.Status)
+        result, err := db.Exec("insert into packet (pub_hash, voltage, frequency, protected) values ($1, $2, $3, $4)", packet.Id, packet.Voltage, packet.Frequency, packet.Status)
         if err != nil {
                 glog.Error(err)
                 return 0 , err
