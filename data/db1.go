@@ -199,6 +199,31 @@ func GetLastConfo(devicename, ssid string) (*Confo, error) {
         return pc, nil
 }
 
+func GetLastConfoWithHash(hash int64) (*Confo, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return nil, err
+        }
+        rows, err := db.Query("select devicename, ssid, created_at from confo where hash=$1 order by created_at desc limit 1", hash)
+        if err != nil {
+                glog.Errorf("data.GetLastConfoWithHash %v \n", err)
+                return nil, err
+        }
+        defer rows.Close()
+        if !rows.Next() {
+                glog.Errorf("data.GetLastConfoWithHash %v \n", err)
+                return nil, fmt.Errorf("No data for : %d \n", hash)
+        }
+        pc := &Confo{}
+        err = rows.Scan(&pc.Devicename, &pc.Ssid, &pc.Created)
+        if err != nil {
+                glog.Errorf("data.GetLastConfoWithHash %v \n", err)
+                return nil, err
+        }
+        return pc, nil
+}
+
 // PutPacket inserts packet in db. It *should* check whether pub_id sent with packet is from the 'correct' pub. This could be a check against the location or a 'secret' decided during configuration with app which is sent along with each packet'
 func PutPacket(packet *Packet) (uint64, error) {
         db, err := GetDB()

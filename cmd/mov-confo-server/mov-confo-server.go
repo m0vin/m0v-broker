@@ -13,6 +13,7 @@ import (
         "log"
         "net"
         "net/http"
+        "strings"
         _ "strconv"
         "sync"
         "time"
@@ -266,9 +267,34 @@ func main() {
 func serveHttp(w http.ResponseWriter, r *http.Request) {
         glog.Infof("Query: %v \n", r.URL.Path)
 	enc := json.NewEncoder(w)
-        devicename := "Movprov"
-        ssid := "M0V"
-        glog.Infof("Retrieving: %s %s \n", devicename, ssid)
+        // get the hash from the url
+        toks := strings.Split(r.URL.Path, "/")
+        if len(toks) < 3 {
+                glog.Errorf("Unknown request path : %v", r.URL.Path)
+                w.WriteHeader(http.StatusOK)
+                w.Write([]byte("Not found"))
+                return
+        }
+        devicename := toks[2] // "Movprov"
+        ssid := toks[3] // "M0V"
+        //hash, err := strconv.ParseInt(toks[1], 10, 64)
+        /*if err != nil {
+                //glog.Errorf("Bad hash in request : %v", err)
+                glog.Errorf("Not enough data in request : %v", err)
+                w.WriteHeader(http.StatusOK)
+                w.Write([]byte("Not found"))
+                return
+        }*/
+        // check that the hash exists in pub and has sent a recent confo
+        /*glog.Infof("Retrieving: %s %s \n", devicename, ssid)
+        _, err = data.GetPubByHash(hash)
+        if err != nil {
+                glog.Errorf("Hash not found: %v", err)
+                w.WriteHeader(http.StatusOK)
+                w.Write([]byte("Not found"))
+                return
+        }*/
+        // confo, err := data.GetLastConfoWithHash(hash)
         confo, err := data.GetLastConfo(devicename, ssid)
         if err != nil {
                 w.WriteHeader(http.StatusOK)
