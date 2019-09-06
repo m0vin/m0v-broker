@@ -406,7 +406,7 @@ func PutPacket(packet *Packet) (uint64, error) {
                 glog.Error(err)
                 return 0, err
         }
-        result, err := db.Exec("insert into packet (pub_hash, created_at, voltage, frequency, protected) values ($1, $2, $3, $4)", packet.Id, packet.Timestamp, packet.Voltage, packet.Frequency, packet.Status)
+        result, err := db.Exec("insert into packet (pub_hash, created_at, voltage, frequency, protected) values ($1, $2, $3, $4, $5)", packet.Id, packet.Timestamp, packet.Voltage, packet.Frequency, packet.Status)
         if err != nil {
                 glog.Error(err)
                 return 0 , err
