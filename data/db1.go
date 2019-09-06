@@ -51,7 +51,7 @@ type Coordinate struct {
 
 type Packet struct {
         Id int64 `json:"id!`
-        Timestamp int64 `json:"timestamp,omitempty"`
+        Timestamp time.Time `json:"timestamp,omitempty"`
         Status bool `json:"status"`
         Voltage float64 `json:"voltage"`
         Frequency float64 `json:"freq"`
@@ -75,6 +75,15 @@ type Pub struct {
         Altitude float32 `json:"altitude,omitempty"`
         Orientation float32 `json:"orientation,omitempty"`
         Hash int64 `json:"hash"`
+        Created time.Time `json:"created,omitempty"`
+}
+
+type Sub struct {
+        Id int64 `json:"id"`
+        Email string `json:"email"`
+        Name string `json:"name"`
+        Phone string `json:"phone"`
+        Pswd string `json:"pswd"`
         Created time.Time `json:"created,omitempty"`
 }
 
@@ -143,6 +152,172 @@ func GetPubByHash(hash int64) (*Pub, error) {
                 return nil, err
         }
         return pc, nil
+}
+
+func GetPubs(limit int) ([]*Pub, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return nil, err
+        }
+        rows, err := db.Query("select pub_id, created_at, latitude, longitude, hash from pub order by created_at desc limit $1", limit)
+        if err != nil {
+                glog.Errorf("data.GetPubs %v \n", err)
+                return nil, err
+        }
+        defer rows.Close()
+        /*if !rows.Next() {
+                glog.Errorf("data.GetPubs no rows \n")
+                return nil, fmt.Errorf("No data for pub \n")
+        }*/
+        pbs := make([]*Pub, 0)
+        for rows.Next() {
+                pb := &Pub{}
+                if err := rows.Scan(&pb.Id, &pb.Created, &pb.Latitude, &pb.Longitude, &pb.Hash); err != nil {
+                        glog.Errorf("data.GetPubs %v \n", err)
+                        return pbs, fmt.Errorf("No data for pubs \n")
+                }
+                glog.Infof("data.GetPubs appending \n")
+                pbs = append(pbs, pb)
+        }
+        return pbs, nil
+}
+
+func GetPubsForSub(email string) ([]*Pub, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return nil, err
+        }
+        rows, err := db.Query("select pub.pub_id, created_at, latitude, longitude, hash from pub inner join subpub on subpub.pub_id = pub.pub_id order by created_at desc limit $1", 10)
+        if err != nil {
+                glog.Errorf("data.GetPubs %v \n", err)
+                return nil, err
+        }
+        defer rows.Close()
+        /*if !rows.Next() {
+                glog.Errorf("data.GetPubs no rows \n")
+                return nil, fmt.Errorf("No data for pub \n")
+        }*/
+        pbs := make([]*Pub, 0)
+        for rows.Next() {
+                pb := &Pub{}
+                if err := rows.Scan(&pb.Id, &pb.Created, &pb.Latitude, &pb.Longitude, &pb.Hash); err != nil {
+                        glog.Errorf("data.GetPubs %v \n", err)
+                        return pbs, fmt.Errorf("No data for pubs \n")
+                }
+                glog.Infof("data.GetPubs appending \n")
+                pbs = append(pbs, pb)
+        }
+        return pbs, nil
+}
+
+func PutSub(sub *Sub) (uint64, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return 0, err
+        }
+        // convert to timestamp
+        //created, err := time.Unix(confo.Created, 0).MarshalText()
+        created, err := sub.Created.MarshalText()
+	if err != nil || sub.Created.Before(time.Date(2000,1,1,1,1,1,1,time.UTC)) {
+                glog.Error(err)
+		created, err = time.Now().MarshalText()
+	}
+        result, err := db.Exec("insert into sub (email, phone, name, pswd, created_at) values ($1, $2, $3, $4, $5)", sub.Email, sub.Phone, sub.Name, sub.Pswd, string(created))
+        if err != nil {
+                glog.Error(err)
+                return 0 , err
+        }
+        rows, err := result.RowsAffected()
+        if rows != 1 {
+                glog.Error("expected to affect 1 row, affected %d", rows)
+                return uint64(rows) , err
+        }
+        return uint64(rows), nil
+}
+
+func GetSubByEmail(email string) (*Sub, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return nil, err
+        }
+        rows, err := db.Query("select sub_id, created_at, email, name, phone from sub where email=$1 order by created_at desc limit 1", email)
+        if err != nil {
+                glog.Errorf("data.GetSubByEmail %v \n", err)
+                return nil, err
+        }
+        defer rows.Close()
+        if !rows.Next() {
+                glog.Errorf("data.GetSubByEmail %v \n", err)
+                return nil, fmt.Errorf("No data for email: %s \n", email)
+        }
+        pc := &Sub{}
+        err = rows.Scan(&pc.Id, &pc.Created, &pc.Email, &pc.Name, &pc.Phone)
+        if err != nil {
+                glog.Errorf("data.GetSubByEmail %v \n", err)
+                return nil, err
+        }
+        return pc, nil
+}
+
+func CheckPswd(email string, pswd string) bool {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return false
+        }
+        rows, err := db.Query("select sub_id, email, pswd from sub where email=$1 order by created_at desc limit 1", email)
+        if err != nil {
+                glog.Errorf("data.CheckPswd %v \n", err)
+                return false
+        }
+        defer rows.Close()
+        if !rows.Next() {
+                glog.Errorf("data.CheckPswd %v \n", err)
+                return false
+        }
+        pc := &Sub{}
+        err = rows.Scan(&pc.Id, &pc.Email, &pc.Pswd)
+        if err != nil {
+                glog.Errorf("data.CheckPswd %v \n", err)
+                return false
+        }
+        if pc.Pswd != pswd {
+                return false
+        }
+        return true
+}
+
+func GetSubs(limit int) ([]*Sub, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return nil, err
+        }
+        rows, err := db.Query("select sub_id, created_at, email, name, phone from sub order by created_at desc limit $1", limit)
+        if err != nil {
+                glog.Errorf("data.GetSubs %v \n", err)
+                return nil, err
+        }
+        defer rows.Close()
+        /*if !rows.Next() {
+                glog.Errorf("data.GetPubs no rows \n")
+                return nil, fmt.Errorf("No data for pub \n")
+        }*/
+        pbs := make([]*Sub, 0)
+        for rows.Next() {
+                pb := &Sub{}
+                if err := rows.Scan(&pb.Id, &pb.Created, &pb.Email, &pb.Name, &pb.Phone); err != nil {
+                        glog.Errorf("data.GetSubs %v \n", err)
+                        return pbs, fmt.Errorf("No data for subs \n")
+                }
+                glog.Infof("data.GetSubs appending \n")
+                pbs = append(pbs, pb)
+        }
+        return pbs, nil
 }
 
 // PutConf inserts a recd. Conf in db. 
@@ -231,7 +406,7 @@ func PutPacket(packet *Packet) (uint64, error) {
                 glog.Error(err)
                 return 0, err
         }
-        result, err := db.Exec("insert into packet (pub_hash, voltage, frequency, protected) values ($1, $2, $3, $4)", packet.Id, packet.Voltage, packet.Frequency, packet.Status)
+        result, err := db.Exec("insert into packet (pub_hash, created_at, voltage, frequency, protected) values ($1, $2, $3, $4)", packet.Id, packet.Timestamp, packet.Voltage, packet.Frequency, packet.Status)
         if err != nil {
                 glog.Error(err)
                 return 0 , err
@@ -244,28 +419,28 @@ func PutPacket(packet *Packet) (uint64, error) {
         return uint64(rows), nil
 }
 
-// GetPacket retrieves the latest packet in db with supplied `pub_id`. 
-// Note: it returns a packet with `id` set to the serial of the reading rather than `pub_id` since caller of function already has `pub_id`
-func GetLastPacket(pubId int64) (*Packet, error) {
+// GetPacket retrieves the latest packet in db with supplied `pub_hash`. 
+// Note: it returns a packet with `id` set to the serial of the reading rather than `pub_hash` since caller of function already has `pub_hash`
+func GetLastPacket(pubHash int64) (*Packet, error) {
         db, err := GetDB()
         if err != nil {
                 glog.Error(err)
                 return nil, err
         }
-        rows, err := db.Query("select id, voltage, frequency, protected from packet where pub_id=$1 order by created_at desc limit 1", pubId)
+        rows, err := db.Query("select id, created_at, voltage, frequency, protected from packet where pub_hash=$1 order by created_at desc limit 1", pubHash)
         if err != nil {
-                glog.Errorf("data.GetCoordinate %v \n", err)
+                glog.Errorf("data.GetLastPacket %v \n", err)
                 return nil, err
         }
         defer rows.Close()
         if !rows.Next() {
-                glog.Errorf("data.GetCoordinate %v \n", err)
-                return nil, fmt.Errorf("No data for user: %d \n", pubId)
+                glog.Errorf("data.GetLastPacket %v \n", err)
+                return nil, fmt.Errorf("No data for user: %d \n", pubHash)
         }
-        pc := &Packet{Id: pubId}
-        err = rows.Scan(&pc.Id, &pc.Voltage, &pc.Frequency, &pc.Status)
+        pc := &Packet{Id: pubHash}
+        err = rows.Scan(&pc.Id, &pc.Timestamp, &pc.Voltage, &pc.Frequency, &pc.Status)
         if err != nil {
-                glog.Errorf("data.GetCoordinate %v \n", err)
+                glog.Errorf("data.GetLastPacket %v \n", err)
                 return nil, err
         }
         return pc, nil

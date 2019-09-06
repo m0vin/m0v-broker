@@ -59,7 +59,7 @@ var (
 )
 
 /*
-## Outcoing connections
+## Outgoing connections
 
 Using an outgoing connection is a snap. A `net.Conn` satisfies the io.Reader
 and `io.Writer` interfaces, so we can treat a TCP connection just like any other
@@ -462,7 +462,8 @@ func store() {
 
 func p2pp(p *Packet) (*data.Packet, error) {
 
-        return &data.Packet{p.Id, p.Timestamp, p.Status, p.Voltage, p.Frequency, p.Lat, p.Lng}, nil
+        t := time.Unix(p.Timestamp, 0)
+        return &data.Packet{p.Id, t, p.Status, p.Voltage, p.Frequency, p.Lat, p.Lng}, nil
 
 }
 
