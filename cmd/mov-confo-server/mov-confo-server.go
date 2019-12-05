@@ -27,7 +27,8 @@ type Confo struct {
         Devicename string`json:"deviceName"`
         Timestamp int64 `json:"timestamp,omitempty"`
         Ssid string `json:"ssid"`
-        Hash int64 `json:hash,omitempty"`
+        Hash int64 `json:"hash,omitempty"`
+        Sub string `json:"email,omitempty"`
 }
 const (
 	// Port is the port number that the server listens to.
@@ -323,11 +324,32 @@ func store() {
         for {
                 select {
                 case p := <-ch:
+                        knownsub := true
+                        // check if the sub is known, i.e. email is registered
+                        s, err := data.GetSubByEmail(p.Sub)
+                        if err != nil {
+                                // email is unregistered, i.e. not in `sub`
+                                knownsub = false
+                                glog.Infof("Uknown email in confo %s %v \n", p.Sub, err)
+                                // check if it's in `csub` and add it if not. 
+                                s, err = data.GetCsubByEmail(p.Sub)
+                                if err != nil {
+                                        glog.Infof("Unkown email not in csub %s %v adding to csub\n", p.Sub, err)
+                                        i, err := data.PutCsub(&data.Sub{Email: p.Sub})
+                                        if err != nil {
+                                                glog.Infof("Unkown email not added to csub %s %v \n", p.Sub, err)
+                                        } else {
+                                                glog.Infof("Unkown email added to csub %s %d \n", p.Sub, i)
+                                        }
+                                } else {
+                                        glog.Infof("Unkown email already in csub %s %d \n", p.Sub, s.Id)
+                                }
+                        }
                         // create the pub if the hash is new
                         pub, err := data.GetPubByHash(p.Hash)
-                        if err != nil {
+                        if err != nil && s != nil {
                                 glog.Infof("New hash %d %v \n", p.Hash, err)
-                                p := &data.Pub{Hash: p.Hash, Created: time.Unix(p.Timestamp, 0)}
+                                p := &data.Pub{Hash: p.Hash, Created: time.Unix(p.Timestamp, 0), Creator: s.Id}
                                 i, err := data.PutPub(p)
                                 if err != nil {
                                         glog.Infof("Couldn't store new hash %d %v \n", p.Hash, err)
@@ -337,7 +359,19 @@ func store() {
                                 }
                         }
                         if pub != nil {
-                                glog.Infof("Pub exists %d %d \n", pub.Id, pub.Hash)
+                                glog.Infof("Pub exists Id:%d Hash:%d Creator:%d\n", pub.Id, pub.Hash, pub.Creator)
+                                if !knownsub { // ensure creator is unpopulated
+                                        glog.Infof("Pub hash %d creator %d should be nil \n", pub.Hash, pub.Creator)
+                                } else {
+                                        if pub.Creator != 0 && pub.Creator != s.Id {
+                                                glog.Infof("Conflict! pub hash %d creator %d, new creator %d \n", pub.Hash, pub.Creator, s.Id)
+                                        } else { // pub.Creator = 0, i.e. not previously populated even though knownsub and pre-existing hash
+                                                pub.Creator = s.Id
+                                                if err := data.UpdatePub(pub); err != nil {
+                                                        glog.Infof("Couldn't update pub hash %d with creator %d \n", pub.Hash, s.Id)
+                                                }
+                                        }
+                                }
                         }
                         // store the confo anyway
                         dp, err := c2dc(p)

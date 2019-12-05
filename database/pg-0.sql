@@ -37,6 +37,12 @@ CREATE TABLE IF NOT EXISTS sub (
 	created_at TIMESTAMPTZ default current_timestamp
 );
 
+CREATE TABLE IF NOT EXISTS csub (
+	sub_id SERIAL PRIMARY KEY,
+	email VARCHAR(64),
+	created_at TIMESTAMPTZ default current_timestamp
+);
+
 CREATE TABLE IF NOT EXISTS subpub (
 	sub_id INTEGER NOT NULL REFERENCES sub(sub_id),
 	pub_id INTEGER NOT NULL REFERENCES pub(pub_id)

@@ -35,6 +35,7 @@ type complexData struct {
 type Packet struct {
         Id int64 `json:"id"`
         Timestamp int64 `json:"timestamp,omitempty"`
+        Timestr string `json:"timestr,omitempty"`
         Status bool `json:"status"`
         Voltage float64 `json:"voltage"`
         Frequency float64 `json:"freq"`
@@ -462,7 +463,11 @@ func store() {
 
 func p2pp(p *Packet) (*data.Packet, error) {
 
-        t := time.Unix(p.Timestamp, 0)
+        t, err := time.Parse(time.RFC3339, p.Timestr)
+        if err != nil {
+                log.Printf("Couldn't parse: %s", p.Timestr)
+                t = time.Unix(p.Timestamp, 0)
+        }
         return &data.Packet{p.Id, t, p.Status, p.Voltage, p.Frequency, p.Lat, p.Lng}, nil
 
 }

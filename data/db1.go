@@ -76,6 +76,7 @@ type Pub struct {
         Orientation float32 `json:"orientation,omitempty"`
         Hash int64 `json:"hash"`
         Created time.Time `json:"created,omitempty"`
+        Creator int64 `json:"email"`
 }
 
 type Sub struct {
@@ -116,7 +117,7 @@ func PutPub(pub *Pub) (uint64, error) {
                 glog.Error(err)
 		created, err = time.Now().MarshalText()
 	}
-        result, err := db.Exec("insert into pub (latitude, longitude, altitude, orientation, created_at, hash) values ($1, $2, $3, $4, $5, $6)", pub.Latitude, pub.Longitude, pub.Altitude, pub.Orientation, string(created), pub.Hash)
+        result, err := db.Exec("insert into pub (latitude, longitude, altitude, orientation, created_at, hash, creator) values ($1, $2, $3, $4, $5, $6, $7)", pub.Latitude, pub.Longitude, pub.Altitude, pub.Orientation, string(created), pub.Hash, pub.Creator)
         if err != nil {
                 glog.Error(err)
                 return 0 , err
@@ -127,6 +128,26 @@ func PutPub(pub *Pub) (uint64, error) {
                 return uint64(rows) , err
         }
         return uint64(rows), nil
+}
+
+// UpdatePub a Pub using hash of provided Pub
+func UpdatePub(pub *Pub) error {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return err
+        }
+        result, err := db.Exec("update pub set latitude = $1, longitude = $2, altitude = $3, orientation = $4, created_at = $5, creator = $7 where pub.Hash = $6", pub.Latitude, pub.Longitude, pub.Altitude, pub.Orientation, pub.Creator, pub.Hash, pub.Creator)
+        if err != nil {
+                glog.Error("Couldn't update pub %v\n", err)
+                return err
+        }
+        rows, err := result.RowsAffected()
+        if rows != 1 {
+                glog.Error("Expected to affect 1 row, affected %d", rows)
+                return err
+        }
+        return nil
 }
 
 func GetPubByHash(hash int64) (*Pub, error) {
@@ -318,6 +339,51 @@ func GetSubs(limit int) ([]*Sub, error) {
                 pbs = append(pbs, pb)
         }
         return pbs, nil
+}
+
+// PutCsub persists an unknown Sub with unregistered email which may be part of a confo from device
+func PutCsub(sub *Sub) (uint64, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return 0, err
+        }
+        result, err := db.Exec("insert into csub (email) values ($1)", sub.Email)
+        if err != nil {
+                glog.Error(err)
+                return 0 , err
+        }
+        rows, err := result.RowsAffected()
+        if rows != 1 {
+                glog.Error("expected to affect 1 row, affected %d", rows)
+                return uint64(rows) , err
+        }
+        return uint64(rows), nil
+}
+
+func GetCsubByEmail(email string) (*Sub, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return nil, err
+        }
+        rows, err := db.Query("select sub_id, created_at, email from csub where email=$1 order by created_at desc limit 1", email)
+        if err != nil {
+                glog.Errorf("data.GetCsubByEmail %v \n", err)
+                return nil, err
+        }
+        defer rows.Close()
+        if !rows.Next() {
+                glog.Errorf("data.GetCsubByEmail %v \n", err)
+                return nil, fmt.Errorf("No data for email: %s \n", email)
+        }
+        pc := &Sub{}
+        err = rows.Scan(&pc.Id, &pc.Created, &pc.Email)
+        if err != nil {
+                glog.Errorf("data.GetCsubByEmail %v \n", err)
+                return nil, err
+        }
+        return pc, nil
 }
 
 // PutConf inserts a recd. Conf in db. 
