@@ -15,17 +15,22 @@ CREATE TABLE IF NOT EXISTS pub (
 	creator INTEGER
 );
 
-CREATE TABLE IF NOT EXISTS config (
+CREATE TABLE IF NOT EXISTS pubconfig (
 	pub_hash INTEGER NOT NULL REFERENCES pub(hash),
 	id SERIAL PRIMARY KEY,
 	nickname VARCHAR(16),
-	power_peak REAL,
-	modules VARCHAR(16),
-	inverter VARCHAR(16),
-	power_last REAL,
+	typeref VARCHAR(16),
+	kwp REAL,
+	kwpmake VARCHAR(16),
+	kwr REAL,
+	kwrmake VARCHAR(16),
+	kw_last REAL,
 	kwh_hour REAL,
 	kwh_day REAL,
-	kwh_life REAL
+	kwh_life REAL,
+	since TIMESTAMPTZ default current_timestamp,
+	visits_last TIMESTAMPTZ default current_timestamp,
+	visits_life INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS sub (

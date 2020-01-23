@@ -79,6 +79,25 @@ type Pub struct {
         Creator int64 `json:"email"`
 }
 
+type PubConfig struct {
+        PubId int64 `json:"pubid"`
+        Hash int64 `json:"hash"`
+        Nickname string `json:"nickname,omitempty"`
+        Typeref string `json:"typeref,omitempty"`
+        Kwp float32 `json:"kwp,omitempty"` // module
+        Kwpmake string `json:"kwpmake,omitempty"`
+        Kwr float32 `json:"kwr,omitempty"` // inverter
+        Kwrmake string `json:"kwrmake,omitempty"`
+        Kwlast float32 `json:"kwlast,omitempty"`
+        Kwhhour float32 `json:"kwhhour,omitempty"`
+        Kwhday float32 `json:"kwhday,omitempty"`
+        Kwhlife float32 `json:"kwhlife,omitempty"`
+        Since time.Time `json:"since,omitempty"`
+        Visitslast time.Time `json:"visitslast,omitempty"`
+        Visitslife int `json:"visitslife,omitempty"`
+        LastUpdated time.Time
+}
+
 type Sub struct {
         Id int64 `json:"id"`
         Email string `json:"email"`
@@ -137,7 +156,8 @@ func UpdatePub(pub *Pub) error {
                 glog.Error(err)
                 return err
         }
-        result, err := db.Exec("update pub set latitude = $1, longitude = $2, altitude = $3, orientation = $4, created_at = $5, creator = $7 where pub.Hash = $6", pub.Latitude, pub.Longitude, pub.Altitude, pub.Orientation, pub.Creator, pub.Hash, pub.Creator)
+        //result, err := db.Exec("update pub set latitude = $1, longitude = $2, altitude = $3, orientation = $4, created_at = $5, creator = $7 where pub.Hash = $6", pub.Latitude, pub.Longitude, pub.Altitude, pub.Orientation, pub.Creator, pub.Hash, pub.Creator)
+        result, err := db.Exec("update pub set latitude = $1, longitude = $2, altitude = $3, orientation = $4, creator = $6 where pub.Hash = $5", pub.Latitude, pub.Longitude, pub.Altitude, pub.Orientation, pub.Hash, pub.Creator)
         if err != nil {
                 glog.Error("Couldn't update pub %v\n", err)
                 return err
@@ -175,6 +195,56 @@ func GetPubByHash(hash int64) (*Pub, error) {
         return pc, nil
 }
 
+func GetPubConfigByHash(hash int64) (*PubConfig, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return nil, err
+        }
+        rows, err := db.Query("select pub_hash, kwp, kwpmake, kwr, kwrmake from pubconfig where pub_hash=$1 order by since desc limit 1", hash)
+        if err != nil {
+                glog.Errorf("data.GetPubByHash %v \n", err)
+                return nil, err
+        }
+        defer rows.Close()
+        if !rows.Next() {
+                glog.Errorf("data.GetPubByHash %v \n", err)
+                return nil, fmt.Errorf("No data for hash: %d \n", hash)
+        }
+        pc := &PubConfig{}
+        err = rows.Scan(&pc.Hash, &pc.Kwp, &pc.Kwpmake, &pc.Kwr, &pc.Kwrmake)
+        if err != nil {
+                glog.Errorf("data.GetPubByHash %v \n", err)
+                return nil, err
+        }
+        return pc, nil
+}
+
+func GetPubById(pub_id int64) (*Pub, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return nil, err
+        }
+        rows, err := db.Query("select pub_id, created_at, latitude, longitude, hash from pub where pub_id=$1 order by created_at desc limit 1", pub_id)
+        if err != nil {
+                glog.Errorf("data.GetPubByHash %v \n", err)
+                return nil, err
+        }
+        defer rows.Close()
+        if !rows.Next() {
+                glog.Errorf("data.GetPubByHash %v \n", err)
+                return nil, fmt.Errorf("No data for id: %d \n", pub_id)
+        }
+        pc := &Pub{}
+        err = rows.Scan(&pc.Id, &pc.Created, &pc.Latitude, &pc.Longitude, &pc.Hash)
+        if err != nil {
+                glog.Errorf("data.GetPubByHash %v \n", err)
+                return nil, err
+        }
+        return pc, nil
+}
+
 func GetPubs(limit int) ([]*Pub, error) {
         db, err := GetDB()
         if err != nil {
@@ -198,19 +268,19 @@ func GetPubs(limit int) ([]*Pub, error) {
                         glog.Errorf("data.GetPubs %v \n", err)
                         return pbs, fmt.Errorf("No data for pubs \n")
                 }
-                glog.Infof("data.GetPubs appending \n")
+                //glog.Infof("data.GetPubs appending \n")
                 pbs = append(pbs, pb)
         }
         return pbs, nil
 }
 
-func GetPubsForSub(email string) ([]*Pub, error) {
+func GetPubsForSub(sub_id int64) ([]*Pub, error) {
         db, err := GetDB()
         if err != nil {
                 glog.Error(err)
                 return nil, err
         }
-        rows, err := db.Query("select pub.pub_id, created_at, latitude, longitude, hash from pub inner join subpub on subpub.pub_id = pub.pub_id order by created_at desc limit $1", 10)
+        rows, err := db.Query("select pub_id, created_at, latitude, longitude, hash from pub where creator=$1 order by created_at desc limit $2", sub_id, 10)
         if err != nil {
                 glog.Errorf("data.GetPubs %v \n", err)
                 return nil, err
@@ -227,10 +297,144 @@ func GetPubsForSub(email string) ([]*Pub, error) {
                         glog.Errorf("data.GetPubs %v \n", err)
                         return pbs, fmt.Errorf("No data for pubs \n")
                 }
-                glog.Infof("data.GetPubs appending \n")
+                //glog.Infof("data.GetPubs appending \n")
                 pbs = append(pbs, pb)
         }
         return pbs, nil
+}
+
+func GetAllPubsForSub(sub_id int64) ([]*Pub, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return nil, err
+        }
+        rows, err := db.Query("select pub.pub_id, created_at, latitude, longitude, hash from pub inner join subpub on subpub.pub_id = pub.pub_id where sub_id=$1 order by created_at desc limit $2", sub_id, 10)
+        if err != nil {
+                glog.Errorf("data.GetPubs %v \n", err)
+                return nil, err
+        }
+        defer rows.Close()
+        /*if !rows.Next() {
+                glog.Errorf("data.GetPubs no rows \n")
+                return nil, fmt.Errorf("No data for pub \n")
+        }*/
+        pbs := make([]*Pub, 0)
+        for rows.Next() {
+                pb := &Pub{}
+                if err := rows.Scan(&pb.Id, &pb.Created, &pb.Latitude, &pb.Longitude, &pb.Hash); err != nil {
+                        glog.Errorf("data.GetPubs %v \n", err)
+                        return pbs, fmt.Errorf("No data for pubs \n")
+                }
+                //glog.Infof("data.GetPubs appending \n")
+                pbs = append(pbs, pb)
+        }
+        return pbs, nil
+}
+
+// GetPubDeviceName returns DeviceName for `pub_hash`from `confo`
+func GetPubDeviceName(pub_hash int64) (string, error){
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return "", err
+        }
+        rows, err := db.Query("select devicename from confo inner join pub on confo.hash = pub.hash where pub.hash=$1 limit 1", pub_hash)
+        if err != nil {
+                glog.Errorf("data.GetPubDeviceName %v \n", err)
+                return "", err
+        }
+        defer rows.Close()
+        if !rows.Next() {
+                glog.Errorf("data.GetPubDeviceName %v \n", err)
+                return "", fmt.Errorf("No devicename for: %d \n", pub_hash)
+        }
+        devicename := ""
+        err = rows.Scan(&devicename)
+        if err != nil {
+                glog.Errorf("data.GetSubByEmail %v \n", err)
+                return "", err
+        }
+        return devicename, nil;
+}
+
+func PutPubForSub(sub_id int, pub_id int) (int, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return 0, err
+        }
+        result, err := db.Exec("insert into subpub (sub_id, pub_id) values ($1, $2)", sub_id, pub_id)
+        if err != nil {
+                glog.Error(err)
+                return 0 , err
+        }
+        rows, err := result.RowsAffected()
+        if rows != 1 {
+                glog.Error("expected to affect 1 row, affected %d", rows)
+                return int(rows) , err
+        }
+        return int(rows), nil
+}
+
+// PutPubConfig puts the provided PubConfig into pg table `pubconfig`
+func PutPubConfig(pubc *PubConfig) (uint64, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return 0, err
+        }
+        result, err := db.Exec("insert into pubconfig (pub_hash, nickname, kwp, kwpmake, kwr, kwrmake) values ($1, $2, $3, $4, $5, $6)", pubc.Hash, pubc.Nickname, pubc.Kwp, pubc.Kwpmake, pubc.Kwr, pubc.Kwrmake)
+        if err != nil {
+                glog.Error(err)
+                return 0 , err
+        }
+        rows, err := result.RowsAffected()
+        if rows != 1 {
+                glog.Error("expected to affect 1 row, affected %d", rows)
+                return uint64(rows) , err
+        }
+        return uint64(rows), nil
+}
+
+// UpdatePubConfig updates a PubConfig in table `pubconfig` using hash of provided PubConfig
+func UpdatePubConfig(pubc *PubConfig) error {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return err
+        }
+        if pubc.Hash == 0 {
+                glog.Error("update pubconfig no hash provided  \n")
+                return fmt.Errorf("invald hash : %d \n", pubc.Hash)
+        }
+        result, err := db.Exec("update pubconfig set kwp = $1, kwpmake = $2, kwr = $3, kwrmake = $4 where pubconfig.pub_hash = $5", pubc.Kwp, pubc.Kwpmake, pubc.Kwr, pubc.Kwrmake, pubc.Hash)
+        if err != nil {
+                glog.Error("Couldn't update pub %v\n", err)
+                return err
+        }
+        rows, err := result.RowsAffected()
+        if rows != 1 {
+                glog.Errorf("Expected to affect 1 row, affected %d", rows)
+                if rows == 0 {
+                        if pubc.Hash == 0 {
+                                glog.Errorf("Couln't create pubconfig %d hash", pubc.Hash)
+                                return fmt.Errorf("Couln't create pubconfig %d hash", pubc.Hash)
+                        }
+                        nick, err := GetPubDeviceName(pubc.Hash)
+                        if err != nil {
+                                glog.Errorf("Couln't get pub name of %d hash", pubc.Hash)
+                                return fmt.Errorf("Couln't create pubconfig %d hash", pubc.Hash)
+                        }
+                        pubc.Nickname = nick
+                        if _, err = PutPubConfig(pubc); err != nil {
+                                glog.Errorf("Couln't put pubconfig %v", err)
+                                return err
+                        }
+                }
+                return err
+        }
+        return nil
 }
 
 func PutSub(sub *Sub) (uint64, error) {
@@ -335,7 +539,7 @@ func GetSubs(limit int) ([]*Sub, error) {
                         glog.Errorf("data.GetSubs %v \n", err)
                         return pbs, fmt.Errorf("No data for subs \n")
                 }
-                glog.Infof("data.GetSubs appending \n")
+                //glog.Infof("data.GetSubs appending \n")
                 pbs = append(pbs, pb)
         }
         return pbs, nil

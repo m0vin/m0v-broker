@@ -358,6 +358,7 @@ func store() {
                                         pub = p
                                 }
                         }
+                        // pub with hash pre-exists
                         if pub != nil {
                                 glog.Infof("Pub exists Id:%d Hash:%d Creator:%d\n", pub.Id, pub.Hash, pub.Creator)
                                 if !knownsub { // ensure creator is unpopulated
