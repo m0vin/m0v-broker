@@ -1,5 +1,5 @@
 #!/bin/sh
-go build -v github.com/tortuoise/mov-server/cmd/mov-server
-go build -v github.com/tortuoise/mov-server/cmd/mov-confo-server
+go build -v github.com/m0vin/m0v-broker/cmd/mov-server
+go build -v github.com/m0vin/m0v-broker/cmd/mov-confo-server
 
 
