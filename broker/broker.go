@@ -109,7 +109,7 @@ func (b *Broker) Start() {
         }
 
         if b.config.HTTPPort != "" {
-                go b.startHttp()
+                //go b.startHttp() // deprecated
         }
 }
 
