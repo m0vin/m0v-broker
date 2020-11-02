@@ -10,6 +10,7 @@ import (
         "log"
         "net"
         "net/http"
+        "strconv"
         "strings"
         "time"
         "github.com/m0vin/m0v-broker/data"
@@ -22,6 +23,9 @@ type Confo struct {
         Ssid string `json:"ssid"`
         Hash int64 `json:"hash,omitempty"`
         Sub string `json:"email,omitempty"`
+        Coords string `json:"coords,omitempty"`
+        Lng float64
+        Lat float64
 }
 
 // Packet encapsulates the data received from the device.
@@ -65,7 +69,8 @@ func NewBroker(config *Config) (*Broker, error) {
                 tlsConfig = &tls.Config{
                         Certificates: []tls.Certificate{b00m},
                         Rand: rand.Reader,
-                        PreferServerCipherSuites: true,
+                        CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_256_CBC_SHA},
+                        //PreferServerCipherSuites: true,
                         GetCertificate: getClientCert,
                         //RootCAs: dsarootx3,
                 }
@@ -212,10 +217,10 @@ func (b *Broker) store() {
                                 // check if the sub is known, i.e. email is registered
                                 s, err := data.GetSubByEmail(c.Sub)
                                 if err != nil {
-                                        // email is unregistered, i.e. not in `sub`
+                                        // email is unregistered, i.e. not in table `sub`
                                         knownsub = false
                                         log.Printf("Uknown email in confo %s %v \n", c.Sub, err)
-                                        // check if it's in `csub` and add it if not. 
+                                        // check if it's in `csub` and if not, add it. 
                                         s, err = data.GetCsubByEmail(c.Sub)
                                         if err != nil {
                                                 log.Printf("Unkown email not in csub %s %v adding to csub\n", c.Sub, err)
@@ -233,7 +238,7 @@ func (b *Broker) store() {
                                 pub, err := data.GetPubByHash(c.Hash)
                                 if err != nil && s != nil {
                                         log.Printf("New hash %d %v \n", c.Hash, err)
-                                        p := &data.Pub{Hash: c.Hash, Created: time.Unix(c.Timestamp, 0), Creator: s.Id}
+                                        p := &data.Pub{Hash: c.Hash, Created: time.Unix(c.Timestamp, 0), Creator: s.Id, Longitude: float32(c.Lng), Latitude: float32(c.Lat)}
                                         i, err := data.PutPub(p)
                                         if err != nil {
                                                 log.Printf("Couldn't store new hash %d %v \n", c.Hash, err)
@@ -382,6 +387,27 @@ func validate(confo *Confo) (*Confo, error) {
         if confo.Devicename == "" || confo.Ssid == "" {
                 log.Printf("Recd. inadequate confo params %s %s \n", confo.Devicename, confo.Ssid)
                 return nil, fmt.Errorf("Recd. inadequate confo params %s %s \n", confo.Devicename, confo.Ssid)
+        }
+        if confo.Coords == "" {
+                log.Printf("Setting coords to defaults: %f &f \n", 77.5, 13.0)
+                confo.Lng = 77.5
+                confo.Lat = 13.0
+        } else {
+                temp := strings.Split(confo.Coords, "/")
+                lng, err := strconv.ParseFloat(temp[0], 64)
+                if err != nil {
+                        log.Printf("ParseFloat(coords): %v \n", err)
+                        confo.Lng = 77.5
+                } else {
+                        confo.Lng = lng
+                }
+                lat, err := strconv.ParseFloat(temp[1], 64)
+                if err != nil {
+                        log.Printf("ParseFloat(coords): %v \n", err)
+                        confo.Lat = 13.0
+                } else {
+                        confo.Lat = lat
+                }
         }
         if confo.Timestamp == 0 {
                 log.Printf("Adding timestamp to confo %s %s \n", confo.Devicename, confo.Ssid)

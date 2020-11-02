@@ -6,12 +6,20 @@ import (
 	_ "github.com/lib/pq"
         "github.com/golang/glog"
 	//"golang.gurusys.co.uk/go-framework/sql"
+        "math/rand"
+        "sort"
 	"time"
 )
 
 var (
 	dbcon *DB
+        kwps = []float32{1.0, 3.0, 5.0, 10.0, 12.0, 20.0, 30.0, 50.0, 80.0, 100.0}
+        kwpmakes = []string{"Canadian", "Emmvee", "First", "HHV", "JA", "Jinko", "Longi", "Q-Cells", "Waree", "Yingli"}
+        kwrs = []float32{1.1, 3.3, 5.5, 10.8, 13.0, 21.0, 32.0, 53.0, 84.0, 105.0}
+        kwrmakes = []string{"Delta", "Enphase", "Fronius", "Growatt", "Huawei", "K-Star", "SMA"}
+        names = []string{"Absolutno", "Achird", "Acrab", "Adhara", "Adhil", "Albali", "Alderamin", "Algorab", "Alruba", "Atlas", "Bellatrix", "Capella", "Citadelle", "Copernicus", "Maia", "Markeb", "Mimosa", "Nahn", "Navi", "Nashira", "Nihal", "Polaris", "Bibha", "Revati", "Sarin", "Shaula", "Sirius", "Subra", "Vega", "Ashvini", "Bharani", "Kritika", "Rohini", "Mrigahirsha", "Ardra", "Punarvasu", "Pushya", "Ashlesha", "Magha", "Falguni", "Hasta", "Chitra", "Svati", "Vishakha", "Anuradha", "Jyeshtha", "Mula", "Ashadha", "Shravana", "Shatabhisha", "Dhanista", "Bhadrapada", "Revati", "Abhijit"}
 )
+
 
 type dbaccount struct {
 	New sq.NullInt64
@@ -96,6 +104,34 @@ type PubConfig struct {
         Visitslast time.Time `json:"visitslast,omitempty"`
         Visitslife int `json:"visitslife,omitempty"`
         LastUpdated time.Time
+}
+
+type Dummies []*PubDummy
+type PubDummy struct {
+        Id int64 `json:"id"`
+        Hash int64 `json:"hash"`
+        Nickname string `json:"nickname,omitempty"`
+        Latitude float32 `json:"latitude,omitempty"`
+        Longitude float32 `json:"longitude,omitempty"`
+        Created time.Time `json:"created,omitempty"`
+        Kwp float32 `json:"kwp,omitempty"` // module
+        Kwpmake string `json:"kwpmake,omitempty"`
+        Kwr float32 `json:"kwr,omitempty"` // inverter
+        Kwrmake string `json:"kwrmake,omitempty"`
+        Kwlast float32 `json:"kwlast,omitempty"`
+        Kwhday float32 `json:"kwhday,omitempty"`
+        Kwhlife float32 `json:"kwhlife,omitempty"`
+        Creator int64 `json:"email"`
+}
+func (ds Dummies) Len() int {
+        return len(ds)
+}
+func (ds Dummies) Swap(i, j int) {
+        ds[i], ds[j] = ds[j], ds[i]
+}
+func (ds Dummies) Less(i,j int) bool {
+        return ds[i].Kwlast > ds[j].Kwlast  // sorts descending
+        //return ds[i].Kwlast < ds[j].Kwlast  // sorts asscending
 }
 
 type Sub struct {
@@ -201,7 +237,7 @@ func GetPubConfigByHash(hash int64) (*PubConfig, error) {
                 glog.Error(err)
                 return nil, err
         }
-        rows, err := db.Query("select pub_hash, kwp, kwpmake, kwr, kwrmake from pubconfig where pub_hash=$1 order by since desc limit 1", hash)
+        rows, err := db.Query("select pub_hash, nickname, kwp, kwpmake, kwr, kwrmake from pubconfig where pub_hash=$1 order by since desc limit 1", hash)
         if err != nil {
                 glog.Errorf("data.GetPubByHash %v \n", err)
                 return nil, err
@@ -212,7 +248,7 @@ func GetPubConfigByHash(hash int64) (*PubConfig, error) {
                 return nil, fmt.Errorf("No data for hash: %d \n", hash)
         }
         pc := &PubConfig{}
-        err = rows.Scan(&pc.Hash, &pc.Kwp, &pc.Kwpmake, &pc.Kwr, &pc.Kwrmake)
+        err = rows.Scan(&pc.Hash, &pc.Nickname, &pc.Kwp, &pc.Kwpmake, &pc.Kwr, &pc.Kwrmake)
         if err != nil {
                 glog.Errorf("data.GetPubByHash %v \n", err)
                 return nil, err
@@ -271,6 +307,31 @@ func GetPubs(limit int) ([]*Pub, error) {
                 //glog.Infof("data.GetPubs appending \n")
                 pbs = append(pbs, pb)
         }
+        return pbs, nil
+}
+
+func GetPubDummies(limit int) (Dummies, error) {
+        //pbs := make([]*PubDummy, 0)
+        pbs := make(Dummies, 0)
+        var lat,lng float32
+        lat=13.0
+        lng=77.5
+        x := []float32{0.25, -0.25}
+        //rand.Seed(time.Now().UnixNano())
+        rand.Seed(123456)
+        for i:=0; i<limit; i++ {
+                la:= lat + rand.Float32() * x[rand.Intn(len(x))]
+                lo:= lng + rand.Float32() * x[rand.Intn(len(x))]
+                rh := time.Duration(-1 * rand.Intn(2400))
+                ii := rand.Intn(len(kwps))
+                kwp := kwps[ii]
+                kwr := kwrs[ii]
+                kw := kwp * 0.9
+                now := time.Now().Add(time.Hour * rh).Round(time.Hour)
+                pb := &PubDummy{Id: int64(i), Nickname: names[i], Latitude: la, Longitude: lo, Hash: int64(rand.Intn(10000)), Created: now, Kwp: kwp, Kwpmake: kwpmakes[rand.Intn(len(kwpmakes))], Kwr:kwr, Kwrmake: kwrmakes[rand.Intn(len(kwrmakes))], Kwlast: kw, Kwhday: kwp*4.5, Kwhlife: rand.Float32()*1000.0}
+                pbs = append(pbs, pb)
+        }
+        sort.Sort(pbs)
         return pbs, nil
 }
 
@@ -714,6 +775,31 @@ func GetLastPacket(pubHash int64) (*Packet, error) {
                 return nil, err
         }
         return pc, nil
+}
+
+func GetLastPackets(pubHash int64, limit int) ([]*Packet, error) {
+        db, err := GetDB()
+        if err != nil {
+                glog.Error(err)
+                return nil, err
+        }
+        rows, err := db.Query("select id, created_at, voltage, frequency, protected from packet where pub_hash=$1 order by created_at desc limit $2", pubHash, limit)
+        if err != nil {
+                glog.Errorf("data.GetLastPacket %v \n", err)
+                return nil, err
+        }
+        defer rows.Close()
+        pcks := make([]*Packet, 0)
+        for rows.Next() {
+                pck := &Packet{}
+                if err := rows.Scan(&pck.Id, &pck.Timestamp, &pck.Voltage, &pck.Frequency, &pck.Status); err != nil {
+                        glog.Errorf("data.GetLastPackets %v \n", err)
+                        return pcks, fmt.Errorf("No data for packets \n")
+                }
+                //glog.Infof("data.GetSubs appending \n")
+                pcks = append(pcks, pck)
+        }
+        return pcks, nil
 }
 
 // PutCoordinate
