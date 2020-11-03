@@ -92,6 +92,7 @@ func NewBroker(config *Config) (*Broker, error) {
         return b, err
 }
 
+// Start kicks off the listeners for Packets/Confos and validation/storage goroutines based on config input
 func (b *Broker) Start() {
         if b == nil {
                 fmt.Println("Broker is nil")
@@ -118,6 +119,7 @@ func (b *Broker) Start() {
         }
 }
 
+// StartListening starts a net.Listener, accepts connection and starts a goroutine to handle each connection. 
 func (b *Broker) StartListening(Tls bool) {
         var err error
         var l net.Listener
@@ -159,6 +161,7 @@ func (b *Broker) StartListening(Tls bool) {
         }
 }
 
+// handleConnection wraps the net.Conn with a buffered Reader and depending on the port of the conn.LocalAddr delegates handling as either Confo or Packet. Closes the connection onces done.
 func (b *Broker) handleConnection(conn net.Conn) {
 	// Wrap the connection into a buffered reader for easier reading.
 	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
@@ -170,7 +173,7 @@ func (b *Broker) handleConnection(conn net.Conn) {
         }
 }
 
-
+// handlePacket is the handler for Packet arriving on TlsPort
 func (b *Broker) handlePacket(rw *bufio.ReadWriter) {
         fmt.Print("Received JSON data")
         packet := &Packet{}
@@ -195,6 +198,7 @@ func (b *Broker) handlePacket(rw *bufio.ReadWriter) {
         }
 }
 
+// store is designed to run as a goroutine. It reads from the Packet and Confo channels, further validates and stores the Packet/Confo.
 func (b *Broker) store() {
         fmt.Printf("%s \n", "Storing ... ")
         for {
@@ -234,9 +238,9 @@ func (b *Broker) store() {
                                                 log.Printf("Unkown email already in csub %s %d \n", c.Sub, s.Id)
                                         }
                                 }
-                                // create the pub if the hash is new
+                                // create the pub if the hash is new, non-zero and sub is known
                                 pub, err := data.GetPubByHash(c.Hash)
-                                if err != nil && s != nil {
+                                if err != nil && s != nil && knownsub && c.Hash != 0 {
                                         log.Printf("New hash %d %v \n", c.Hash, err)
                                         p := &data.Pub{Hash: c.Hash, Created: time.Unix(c.Timestamp, 0), Creator: s.Id, Longitude: float32(c.Lng), Latitude: float32(c.Lat)}
                                         i, err := data.PutPub(p)
@@ -244,6 +248,12 @@ func (b *Broker) store() {
                                                 log.Printf("Couldn't store new hash %d %v \n", c.Hash, err)
                                         } else {
                                                 log.Printf("Pub saved %d %d \n", i, p.Hash)
+                                                _, err := data.PutPubForSub(int(s.Id),int(i))
+                                                if err != nil {
+                                                        log.Printf("subpub not populated %v \n", err)
+                                                } else {
+                                                        log.Printf("Pub %d saved for Sub %d \n", i, s.Id)
+                                                }
                                                 pub = p
                                         }
                                 }
@@ -274,8 +284,8 @@ func (b *Broker) store() {
                                 }
                                 log.Printf("%s %d \n", "Confo saved: %d", i)
                         }
-                case <-time.After(30*time.Second):
-                        fmt.Printf("%s \n", "No packets received for 30 seconds")
+                case <-time.After(60*time.Second):
+                        fmt.Printf("%s \n", "No packets received for 60 seconds")
                 }
         }
 }
@@ -293,6 +303,7 @@ func c2dc(c *Confo) (*data.Confo, error) {
         return &data.Confo{Devicename: c.Devicename, Ssid: c.Ssid, Created: time.Unix(c.Timestamp, 0), Hash: c.Hash}, nil
 }
 
+// StartListeningForConfos starts a net.Listener, accepts connection and starts a goroutine to handle each connection. 
 func (b *Broker) StartListeningForConfos(Tls bool) {
         var err error
         var l net.Listener
@@ -334,7 +345,7 @@ func (b *Broker) StartListeningForConfos(Tls bool) {
         }
 }
 
-// handleConfo attempts to marshal recd. json data into Confo. If successful, tests for number of parameters. If 3 (devicename, ssid, timestamp) then sent by device, so packet is saved in db and response serial id persisted by device for sending with subsequent packets. If 2 (devicename, ssid) then query by app, so check if (devicename,ssid) has an entry in db and respond with the last timestamp for (devicename,ssid).
+// handleConfo is the handler for Confos arriving on TlsConfoPort. It attempts to marshal recd. json data into Confo. If successful, superficially validates parameters of Confo. If Devicename & Ssid present, Confo is pushed into channel for further validation and storage. Timestamp and Coords are populated if absent in Confo.
 func (b *Broker) handleConfo(rw *bufio.ReadWriter) {
         log.Printf("Received JSON data")
         confo := &Confo{}
@@ -383,13 +394,14 @@ func (b *Broker) handleConfo(rw *bufio.ReadWriter) {
         }
 }
 
+// validate perform a superficial check on Confo. Devicename and Ssid must at minimum be present in Confo or error is returned. Timestamp and Coords are populated if absent and Confo returned along with nil error. 
 func validate(confo *Confo) (*Confo, error) {
         if confo.Devicename == "" || confo.Ssid == "" {
                 log.Printf("Recd. inadequate confo params %s %s \n", confo.Devicename, confo.Ssid)
                 return nil, fmt.Errorf("Recd. inadequate confo params %s %s \n", confo.Devicename, confo.Ssid)
         }
         if confo.Coords == "" {
-                log.Printf("Setting coords to defaults: %f &f \n", 77.5, 13.0)
+                log.Printf("Setting coords to defaults: %f %f \n", 77.5, 13.0)
                 confo.Lng = 77.5
                 confo.Lat = 13.0
         } else {

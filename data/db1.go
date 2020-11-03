@@ -159,6 +159,7 @@ type TrackRequest struct {
 	Track  string
 }
 
+// PutPub persists the provided Pub returning the pub_id
 func PutPub(pub *Pub) (uint64, error) {
         db, err := GetDB()
         if err != nil {
@@ -172,7 +173,7 @@ func PutPub(pub *Pub) (uint64, error) {
                 glog.Error(err)
 		created, err = time.Now().MarshalText()
 	}
-        result, err := db.Exec("insert into pub (latitude, longitude, altitude, orientation, created_at, hash, creator) values ($1, $2, $3, $4, $5, $6, $7)", pub.Latitude, pub.Longitude, pub.Altitude, pub.Orientation, string(created), pub.Hash, pub.Creator)
+        /*result, err := db.Exec("insert into pub (latitude, longitude, altitude, orientation, created_at, hash, creator) values ($1, $2, $3, $4, $5, $6, $7)", pub.Latitude, pub.Longitude, pub.Altitude, pub.Orientation, string(created), pub.Hash, pub.Creator)
         if err != nil {
                 glog.Error(err)
                 return 0 , err
@@ -182,7 +183,24 @@ func PutPub(pub *Pub) (uint64, error) {
                 glog.Error("expected to affect 1 row, affected %d", rows)
                 return uint64(rows) , err
         }
-        return uint64(rows), nil
+        return uint64(rows), nil*/
+        result, err := db.Query("insert into pub (latitude, longitude, altitude, orientation, created_at, hash, creator) values ($1, $2, $3, $4, $5, $6, $7) returning pub_id", pub.Latitude, pub.Longitude, pub.Altitude, pub.Orientation, string(created), pub.Hash, pub.Creator)
+        if err != nil {
+                glog.Errorf("%v \n", err)
+                return 0 , err
+        }
+	var id uint64
+	defer result.Close()
+	if !result.Next() {
+                glog.Errorf("failed to insert any rows \n")
+		return 0, fmt.Errorf("no rows returned on insert \n")
+	}
+	err = result.Scan(&id)
+	if err != nil {
+                fmt.Printf("failed to get id for new Pub:%s\n", err)
+		return 0, fmt.Errorf("no id for new Pub (%s)", err)
+	}
+        return id, nil
 }
 
 // UpdatePub a Pub using hash of provided Pub
@@ -419,6 +437,7 @@ func GetPubDeviceName(pub_hash int64) (string, error){
         return devicename, nil;
 }
 
+// PutPubForSub populates the 'pubsub' table with the supplied sub_id and pub_id
 func PutPubForSub(sub_id int, pub_id int) (int, error) {
         db, err := GetDB()
         if err != nil {
