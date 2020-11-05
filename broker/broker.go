@@ -213,7 +213,7 @@ func (b *Broker) store() {
                                 if err != nil {
                                         fmt.Printf("%s %v \n", "Packet not saved: ", err)
                                 }
-                                fmt.Printf("%s %d \n", "Packet saved: %d", i)
+                                fmt.Printf("%s %d \n", "Packet saved: ", i)
                         }
                 case c := <-b.chc:
                         if b.db {
