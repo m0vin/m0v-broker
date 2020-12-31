@@ -62,9 +62,24 @@ type Packet struct {
         Timestamp time.Time `json:"timestamp,omitempty"`
         Status bool `json:"status"`
         Voltage float64 `json:"voltage"`
+        Current float64 `json:"current"`
+        ActiPwr float64 `json:"activePower"`
+        AppaPwr float64 `json:"apparentPwr"`
+        ReacPwr float64 `json:"reactivePwr"`
+        PwrFctr float64 `json:"powerFactor"`
         Frequency float64 `json:"freq"`
+        ImActEn float64 `json:"impActvEnrg"`
+        ExActEn float64 `json:"expActvEnrg"`
+        ImRctEn float64 `json:"impRctvEnrg"`
+        ExRctEn float64 `json:"expRctvEnrg"`
+        TlActEn float64 `json:"ttlActvEnrg"`
+        TlRctEn float64 `json:"ttlRctvEnrg"`
         Lat float64 `json:"lat"`
         Lng float64 `json:"lng"`
+}
+
+func (p *Packet) FormattedTimestamp() string {
+        return p.Timestamp.Format("2006-01-02 15:04:05")
 }
 
 type Confo struct {
@@ -85,6 +100,10 @@ type Pub struct {
         Hash int64 `json:"hash"`
         Created time.Time `json:"created,omitempty"`
         Creator int64 `json:"email"`
+}
+
+func (p *Pub) FormattedCreated() string {
+        return p.Created.Format("2006-01-02 15:04:05")
 }
 
 type PubConfig struct {
@@ -677,11 +696,13 @@ func PutConfo(confo *Confo) (uint64, error) {
                 glog.Error(err)
                 return 0, err
         }
-        // convert to timestamp
+        // check and convert to timestamp
         //created, err := time.Unix(confo.Created, 0).MarshalText()
         created, err := confo.Created.MarshalText()
-	if err != nil {
-                glog.Error(err)
+	if err != nil || confo.Created.Before(time.Date(2006,1,2,3,4,5,0,time.UTC)) {
+                if err != nil {
+                        glog.Error(err)
+                }
 		created, err = time.Now().MarshalText()
 	}
         result, err := db.Exec("insert into confo (devicename, ssid, created_at, hash) values ($1, $2, $3, $4)", confo.Devicename, confo.Ssid, string(created), confo.Hash)
@@ -756,7 +777,7 @@ func PutPacket(packet *Packet) (uint64, error) {
                 glog.Error(err)
                 return 0, err
         }
-        result, err := db.Exec("insert into packet (pub_hash, created_at, voltage, frequency, protected) values ($1, $2, $3, $4, $5)", packet.Id, packet.Timestamp, packet.Voltage, packet.Frequency, packet.Status)
+        result, err := db.Exec("insert into packet (pub_hash, created_at, voltage, frequency, protected, active_power, apparent_power, reactive_power, power_factor, import_active_energy, export_active_energy, import_reactive_energy, export_reactive_energy, total_active_energy, total_reactive_energy) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)", packet.Id, packet.Timestamp, packet.Voltage, packet.Frequency, packet.Status, packet.ActiPwr, packet.AppaPwr, packet.ReacPwr, packet.PwrFctr, packet.ImActEn, packet.ExActEn, packet.ImRctEn, packet.ExRctEn, packet.TlActEn, packet.TlRctEn)
         if err != nil {
                 glog.Error(err)
                 return 0 , err
@@ -802,7 +823,7 @@ func GetLastPackets(pubHash int64, limit int) ([]*Packet, error) {
                 glog.Error(err)
                 return nil, err
         }
-        rows, err := db.Query("select id, created_at, voltage, frequency, protected from packet where pub_hash=$1 order by created_at desc limit $2", pubHash, limit)
+        rows, err := db.Query("select id, created_at, voltage, frequency, protected, active_power, apparent_power, reactive_power, power_factor, import_active_energy, export_active_energy, import_reactive_energy, export_reactive_energy, total_active_energy, total_reactive_energy from packet where pub_hash=$1 order by created_at desc limit $2", pubHash, limit)
         if err != nil {
                 glog.Errorf("data.GetLastPacket %v \n", err)
                 return nil, err
@@ -811,7 +832,7 @@ func GetLastPackets(pubHash int64, limit int) ([]*Packet, error) {
         pcks := make([]*Packet, 0)
         for rows.Next() {
                 pck := &Packet{}
-                if err := rows.Scan(&pck.Id, &pck.Timestamp, &pck.Voltage, &pck.Frequency, &pck.Status); err != nil {
+                if err := rows.Scan(&pck.Id, &pck.Timestamp, &pck.Voltage, &pck.Frequency, &pck.Status, &pck.ActiPwr, &pck.AppaPwr, &pck.ReacPwr, &pck.PwrFctr, &pck.ImActEn, &pck.ExActEn, &pck.ImRctEn, &pck.ExRctEn, &pck.TlActEn, &pck.TlRctEn); err != nil {
                         glog.Errorf("data.GetLastPackets %v \n", err)
                         return pcks, fmt.Errorf("No data for packets \n")
                 }

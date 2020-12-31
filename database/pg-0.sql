@@ -62,7 +62,17 @@ CREATE TABLE IF NOT EXISTS packet (
 	saved_at TIMESTAMPTZ NOT NULL default current_timestamp,
 	voltage REAL,
 	frequency REAL,
-	protected boolean NOT NULL
+	protected boolean NOT NULL,
+	active_power REAL,
+	apparent_power REAL,
+	reactive_power REAL,
+	power_factor REAL,
+	import_active_energy REAL,
+	export_active_energy REAL,
+	import_reactive_energy REAL,
+	export_reactive_energy REAL,
+	total_active_energy REAL,
+	total_reactive_energy REAL
 );
 
 CREATE TABLE IF NOT EXISTS confo (

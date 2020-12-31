@@ -35,7 +35,18 @@ type Packet struct {
         Timestr string `json:"timestr,omitempty"`
         Status bool `json:"status"`
         Voltage float64 `json:"voltage"`
+        Current float64 `json:"current"`
+        ActiPwr float64 `json:"activePower"`
+        AppaPwr float64 `json:"apparentPwr"`
+        ReacPwr float64 `json:"reactivePwr"`
+        PwrFctr float64 `json:"powerFactor"`
         Frequency float64 `json:"freq"`
+        ImActEn float64 `json:"impActvEnrg"`
+        ExActEn float64 `json:"expActvEnrg"`
+        ImRctEn float64 `json:"impRctvEnrg"`
+        ExRctEn float64 `json:"expRctvEnrg"`
+        TlActEn float64 `json:"ttlActvEnrg"`
+        TlRctEn float64 `json:"ttlRctvEnrg"`
         Lat float64 `json:"lat"`
         Lng float64 `json:"lng"`
 }
@@ -296,7 +307,7 @@ func p2pp(p *Packet) (*data.Packet, error) {
                 fmt.Printf("Couldn't parse: %s", p.Timestr)
                 t = time.Unix(p.Timestamp, 0)
         }
-        return &data.Packet{p.Id, t, p.Status, p.Voltage, p.Frequency, p.Lat, p.Lng}, nil
+        return &data.Packet{Id: p.Id, Timestamp: t, Status: p.Status, Voltage: p.Voltage, Frequency: p.Frequency, Current: p.Current, ActiPwr: p.ActiPwr, AppaPwr: p.AppaPwr, ReacPwr: p.ReacPwr, PwrFctr: p.PwrFctr, ImActEn: p.ImActEn, ExActEn: p.ExActEn, ImRctEn: p.ImRctEn, ExRctEn: p.ExRctEn, TlActEn: p.TlActEn, TlRctEn: p.TlRctEn, Lat: p.Lat, Lng: p.Lng}, nil
 }
 
 func c2dc(c *Confo) (*data.Confo, error) {
@@ -421,7 +432,7 @@ func validate(confo *Confo) (*Confo, error) {
                         confo.Lat = lat
                 }
         }
-        if confo.Timestamp == 0 {
+        if confo.Timestamp < 1136239445 { //  == 0 {
                 log.Printf("Adding timestamp to confo %s %s \n", confo.Devicename, confo.Ssid)
                 confo.Timestamp = time.Now().Unix()
                 return confo, nil
